@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 
+import dependenciesPlugin from './plugins/dependencies.js';
 import healthRoutes from './routes/health.js';
 
 export function buildApp(options = {}) {
@@ -7,7 +8,14 @@ export function buildApp(options = {}) {
     logger: options.logger ?? true
   });
 
-  app.register(healthRoutes);
+  app.register(dependenciesPlugin, {
+    databaseUrl: options.databaseUrl,
+    redisUrl: options.redisUrl,
+    dependencies: options.dependencies
+  });
+  app.register(healthRoutes, {
+    checkTimeoutMs: options.healthCheckTimeoutMs
+  });
 
   return app;
 }
