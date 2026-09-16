@@ -42,6 +42,24 @@ Expected response:
 
 The endpoint returns HTTP `503` with `status: "unavailable"` if PostgreSQL or Redis cannot be reached.
 
+## WebSocket test
+
+The WebSocket endpoint is available at `ws://localhost:3000/ws`. Start the app,
+then open <http://localhost:3000> in a browser. The page is served from
+[`public/index.html`](./public/index.html) and can evolve into the client
+interface later. Click **Connect**, enter a message, and click **Send**. The page
+sends an `echo` event and displays the server's `echo.response` event.
+
+Example request:
+
+```json
+{
+  "type": "echo",
+  "requestId": "request-1",
+  "data": { "message": "Hello" }
+}
+```
+
 Stop the containers with:
 
 ```bash

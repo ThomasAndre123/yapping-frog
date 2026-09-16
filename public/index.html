@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yapping Frog Chat</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #111827;
+      color: #e5e7eb;
+    }
+
+    body {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 20px;
+    }
+
+    h1 { margin-bottom: 8px; }
+    p { color: #9ca3af; }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    input, button {
+      border: 1px solid #374151;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      background: #1f2937;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    #disconnect { background: #b91c1c; }
+
+    #status {
+      display: inline-block;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #374151;
+    }
+
+    #status.connected { background: #166534; }
+
+    pre {
+      min-height: 260px;
+      overflow: auto;
+      padding: 16px;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      background: #030712;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Yapping Frog Chat</h1>
+  <p>Development client for testing the WebSocket connection.</p>
+
+  <div>Status: <span id="status">disconnected</span></div>
+
+  <div class="row">
+    <input id="url" aria-label="WebSocket URL" value="ws://localhost:3000/ws">
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+  </div>
+
+  <form id="message-form" class="row">
+    <input id="message" aria-label="Message" value="Hello from the test page">
+    <button id="send" type="submit" disabled>Send</button>
+  </form>
+
+  <pre id="log" aria-live="polite"></pre>
+
+  <script>
+    const elements = {
+      url: document.querySelector('#url'),
+      status: document.querySelector('#status'),
+      connect: document.querySelector('#connect'),
+      disconnect: document.querySelector('#disconnect'),
+      form: document.querySelector('#message-form'),
+      message: document.querySelector('#message'),
+      send: document.querySelector('#send'),
+      log: document.querySelector('#log')
+    };
+    let socket;
+
+    function log(direction, value) {
+      const time = new Date().toLocaleTimeString();
+      elements.log.textContent += `[${time}] ${direction} ${value}\n`;
+      elements.log.scrollTop = elements.log.scrollHeight;
+    }
+
+    function setConnected(connected) {
+      elements.status.textContent = connected ? 'connected' : 'disconnected';
+      elements.status.classList.toggle('connected', connected);
+      elements.connect.disabled = connected;
+      elements.disconnect.disabled = !connected;
+      elements.send.disabled = !connected;
+      elements.url.disabled = connected;
+    }
+
+    elements.connect.addEventListener('click', () => {
+      socket = new WebSocket(elements.url.value);
+      elements.status.textContent = 'connecting';
+      elements.connect.disabled = true;
+
+      socket.addEventListener('open', () => {
+        setConnected(true);
+        log('OPEN', elements.url.value);
+      });
+
+      socket.addEventListener('message', (event) => log('RECV', event.data));
+
+      socket.addEventListener('error', () => log('ERROR', 'WebSocket error'));
+
+      socket.addEventListener('close', (event) => {
+        setConnected(false);
+        log('CLOSE', `code=${event.code} reason=${event.reason || 'none'}`);
+      });
+    });
+
+    elements.disconnect.addEventListener('click', () => socket?.close(1000, 'Client closed'));
+
+    elements.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const payload = {
+        type: 'echo',
+        requestId: crypto.randomUUID(),
+        data: { message: elements.message.value }
+      };
+
+      const encoded = JSON.stringify(payload);
+      socket.send(encoded);
+      log('SEND', encoded);
+    });
+  </script>
+</body>
+</html>
