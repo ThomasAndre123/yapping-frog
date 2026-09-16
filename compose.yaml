@@ -8,6 +8,8 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://chat:chat@postgres:5432/chat
       REDIS_URL: redis://redis:6379
+      ADMIN_ENABLED: ${ADMIN_ENABLED:-false}
+      ADMIN_SESSION_TTL_HOURS: ${ADMIN_SESSION_TTL_HOURS:-8}
     ports:
       - "3000:3000"
     volumes:

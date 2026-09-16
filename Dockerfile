@@ -22,6 +22,9 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 COPY public ./public
+COPY admin ./admin
+COPY migrations ./migrations
+COPY scripts ./scripts
 
 USER node
 

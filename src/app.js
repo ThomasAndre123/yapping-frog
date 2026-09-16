@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 
+import adminPlugin from './plugins/admin.js';
 import dependenciesPlugin from './plugins/dependencies.js';
 import staticFilesPlugin from './plugins/static-files.js';
 import websocketPlugin from './plugins/websocket.js';
@@ -22,6 +23,14 @@ export function buildApp(options = {}) {
     heartbeatIntervalMs: options.websocketHeartbeatIntervalMs
   });
   app.register(staticFilesPlugin);
+
+  const adminEnabled = options.adminEnabled ?? process.env.ADMIN_ENABLED === 'true';
+
+  if (adminEnabled) {
+    app.register(adminPlugin, {
+      sessionTtlHours: options.adminSessionTtlHours
+    });
+  }
 
   return app;
 }

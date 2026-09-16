@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yapping Frog Administration</title>
+  <link rel="stylesheet" href="/admin/styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span class="eyebrow">Yapping Frog</span>
+        <h1>Administration</h1>
+      </div>
+      <div id="account" class="hidden">
+        <span id="identity"></span>
+        <button id="logout" class="secondary">Log out</button>
+      </div>
+    </header>
+
+    <section id="notice" class="notice hidden" role="alert"></section>
+
+    <section id="login-card" class="card narrow">
+      <h2>Administrator login</h2>
+      <p>Use an active platform administrator account.</p>
+      <form id="login-form">
+        <label>Email<input id="email" name="email" type="email" autocomplete="username" required></label>
+        <label>Password<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Log in</button>
+      </form>
+    </section>
+
+    <section id="dashboard" class="hidden">
+      <div class="toolbar">
+        <div>
+          <h2>Tenants</h2>
+          <p>Manage customer organizations on this service.</p>
+        </div>
+        <button id="refresh" class="secondary">Refresh</button>
+      </div>
+
+      <form id="tenant-form" class="card inline-form">
+        <label>Slug<input id="tenant-slug" placeholder="acme-store" required pattern="[a-z0-9][a-z0-9-]{1,62}"></label>
+        <label>Name<input id="tenant-name" placeholder="Acme Store" required maxlength="200"></label>
+        <button type="submit">Create tenant</button>
+      </form>
+
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="tenants"></tbody>
+        </table>
+        <p id="empty" class="empty hidden">No tenants have been created.</p>
+      </div>
+
+      <div id="administrators-section" class="card hidden">
+        <h2>Administrators</h2>
+        <div id="administrators"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/admin/app.js"></script>
+</body>
+</html>

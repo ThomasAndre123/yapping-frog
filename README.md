@@ -78,6 +78,50 @@ The first migration creates:
 Platform administrators deliberately have no `tenant_id`: they operate the
 service itself and are different from tenant agents or tenant owners.
 
+## Optional administration server
+
+The admin UI is an optional plugin. Keep it disabled on normal public app nodes:
+
+```env
+ADMIN_ENABLED=false
+```
+
+Enable it only on the server instance intended to host administration:
+
+```env
+ADMIN_ENABLED=true
+ADMIN_SESSION_TTL_HOURS=8
+```
+
+After enabling it, restart that instance and open <http://localhost:3000/admin/>.
+When disabled, `/admin` and `/api/admin/v1/*` are not registered and return 404.
+This supports a deployment where public API/WebSocket nodes do not expose the
+administration surface at all. In production, place the enabled instance behind
+a VPN or identity-aware proxy as an additional control.
+
+Before logging in, apply migrations and create the first administrator:
+
+```bash
+npm run db:migrate
+ADMIN_EMAIL=admin@example.com \
+ADMIN_NAME="Primary Administrator" \
+ADMIN_PASSWORD="use-a-long-unique-password" \
+npm run admin:create
+```
+
+Avoid saving `ADMIN_PASSWORD` in `.env`; it is needed only by the one-time CLI.
+The password is stored as a salted scrypt hash. The UI uses an HTTP-only,
+SameSite session cookie and a CSRF token. The initial interface supports:
+
+- administrator login and logout
+- listing and creating tenants
+- suspending and reactivating tenants
+- read-only administrator listing for `super_admin`
+- audit records for tenant creation and status changes
+
+The `support` role is read-only. The `operator` and `super_admin` roles can
+create tenants and change tenant status.
+
 ## WebSocket test
 
 The WebSocket endpoint is available at `ws://localhost:3000/ws`. Start the app,

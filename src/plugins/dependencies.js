@@ -25,6 +25,9 @@ function createDependencies({ databaseUrl, redisUrl, logger }) {
 
   return {
     postgres: {
+      async query(text, values) {
+        return postgres.query(text, values);
+      },
       async check() {
         await postgres.query('SELECT 1');
       },
