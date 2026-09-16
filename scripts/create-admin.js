@@ -12,11 +12,6 @@ if (!DATABASE_URL || !ADMIN_EMAIL || !ADMIN_NAME || !ADMIN_PASSWORD) {
   process.exit(1);
 }
 
-if (ADMIN_PASSWORD.length < 12) {
-  console.error('ADMIN_PASSWORD must contain at least 12 characters.');
-  process.exit(1);
-}
-
 const pool = new Pool({ connectionString: DATABASE_URL, max: 1 });
 
 try {

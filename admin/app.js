@@ -9,11 +9,16 @@ const elements = {
   tenants: document.querySelector('#tenants'),
   empty: document.querySelector('#empty'),
   administratorsSection: document.querySelector('#administrators-section'),
-  administrators: document.querySelector('#administrators')
+  administrators: document.querySelector('#administrators'),
+  passwordForm: document.querySelector('#password-form'),
+  auditSection: document.querySelector('#audit-section'),
+  auditEntries: document.querySelector('#audit-entries'),
+  moreAudit: document.querySelector('#more-audit')
 };
 
 let csrfToken;
 let administrator;
+let auditCursor;
 
 function showNotice(message, success = false) {
   elements.notice.textContent = message;
@@ -106,6 +111,37 @@ async function loadAdministrators() {
   elements.administratorsSection.classList.remove('hidden');
 }
 
+async function loadAuditLog({ append = false } = {}) {
+  if (administrator.role !== 'super_admin') return;
+  const query = append && auditCursor ? `?before=${encodeURIComponent(auditCursor)}` : '';
+  const { entries, nextBefore } = await api(`/api/admin/v1/audit-log${query}`);
+
+  if (!append) elements.auditEntries.replaceChildren();
+
+  for (const entry of entries) {
+    const row = document.createElement('tr');
+    const target = entry.tenant_name ?? entry.target_id ?? entry.target_type;
+    const values = [
+      new Date(entry.created_at).toLocaleString(),
+      entry.administrator_name ?? entry.administrator_email ?? 'Deleted administrator',
+      entry.action,
+      target,
+      entry.ip_address ?? '—'
+    ];
+
+    for (const value of values) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.append(cell);
+    }
+    elements.auditEntries.append(row);
+  }
+
+  auditCursor = nextBefore;
+  elements.moreAudit.classList.toggle('hidden', !nextBefore);
+  elements.auditSection.classList.remove('hidden');
+}
+
 async function initialize() {
   try {
     const session = await api('/api/admin/v1/session');
@@ -114,7 +150,7 @@ async function initialize() {
     elements.identity.textContent = `${administrator.displayName} · ${administrator.role}`;
     elements.tenantForm.classList.toggle('hidden', administrator.role === 'support');
     setAuthenticated(true);
-    await Promise.all([loadTenants(), loadAdministrators()]);
+    await Promise.all([loadTenants(), loadAdministrators(), loadAuditLog()]);
   } catch {
     setAuthenticated(false);
   }
@@ -153,7 +189,32 @@ elements.tenantForm.addEventListener('submit', async (event) => {
   } catch (error) { showNotice(error.message); }
 });
 
+elements.passwordForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearNotice();
+  const currentPassword = document.querySelector('#current-password').value;
+  const newPassword = document.querySelector('#new-password').value;
+  const confirmation = document.querySelector('#confirm-password').value;
+
+  if (newPassword !== confirmation) {
+    showNotice('New password and confirmation do not match.');
+    return;
+  }
+
+  try {
+    const result = await api('/api/admin/v1/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    event.currentTarget.reset();
+    showNotice(result.message, true);
+    if (administrator.role === 'super_admin') await loadAuditLog();
+  } catch (error) { showNotice(error.message); }
+});
+
 document.querySelector('#refresh').addEventListener('click', () => loadTenants().catch((error) => showNotice(error.message)));
+document.querySelector('#refresh-audit').addEventListener('click', () => loadAuditLog().catch((error) => showNotice(error.message)));
+elements.moreAudit.addEventListener('click', () => loadAuditLog({ append: true }).catch((error) => showNotice(error.message)));
 document.querySelector('#logout').addEventListener('click', async () => {
   await api('/api/admin/v1/session', { method: 'DELETE' });
   csrfToken = undefined;

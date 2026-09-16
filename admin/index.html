@@ -58,6 +58,34 @@
         <h2>Administrators</h2>
         <div id="administrators"></div>
       </div>
+
+      <div class="settings-grid">
+        <form id="password-form" class="card">
+          <h2>Change password</h2>
+          <p>Changing your password signs out your other admin sessions.</p>
+          <label>Current password<input id="current-password" type="password" autocomplete="current-password" required></label>
+          <label>New password<input id="new-password" type="password" autocomplete="new-password" minlength="1" required></label>
+          <label>Confirm new password<input id="confirm-password" type="password" autocomplete="new-password" minlength="1" required></label>
+          <button type="submit">Change password</button>
+        </form>
+      </div>
+
+      <div id="audit-section" class="card hidden">
+        <div class="toolbar">
+          <div>
+            <h2>Administrator audit log</h2>
+            <p>Recent security and tenant-management activity.</p>
+          </div>
+          <button id="refresh-audit" class="secondary">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Target</th><th>IP address</th></tr></thead>
+            <tbody id="audit-entries"></tbody>
+          </table>
+        </div>
+        <button id="more-audit" class="secondary hidden">Load older entries</button>
+      </div>
     </section>
   </main>
   <script type="module" src="/admin/app.js"></script>

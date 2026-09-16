@@ -29,4 +29,6 @@ th { color: #64748b; font-size: 12px; letter-spacing: .05em; text-transform: upp
 .status.suspended { background: #fee2e2; color: #991b1b; }
 .empty { padding: 30px; text-align: center; }
 .admin-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+.settings-grid { display: grid; grid-template-columns: minmax(280px, 520px); }
+#more-audit { margin-top: 18px; }
 @media (max-width: 700px) { .inline-form { grid-template-columns: 1fr; } header { align-items: flex-start; } }

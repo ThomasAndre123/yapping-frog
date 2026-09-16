@@ -117,6 +117,9 @@ SameSite session cookie and a CSRF token. The initial interface supports:
 - listing and creating tenants
 - suspending and reactivating tenants
 - read-only administrator listing for `super_admin`
+- self-service password changes with current-password verification
+- revocation of other sessions after a password change
+- cursor-paginated audit-log viewing for `super_admin`
 - audit records for tenant creation and status changes
 
 The `support` role is read-only. The `operator` and `super_admin` roles can

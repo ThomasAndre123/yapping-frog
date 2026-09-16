@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import fp from 'fastify-plugin';
 
-import { verifyPassword } from '../security/password.js';
+import { hashPassword, verifyPassword } from '../security/password.js';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const adminDirectory = path.resolve(currentDirectory, '../../admin');
@@ -47,6 +47,7 @@ async function adminPlugin(app, options) {
       return reply.code(401).send({ error: 'Authentication required' });
     }
 
+    const hashedToken = tokenHash(token);
     const result = await database.query(`
       SELECT
         a.id,
@@ -60,7 +61,7 @@ async function adminPlugin(app, options) {
       WHERE s.token_hash = $1
         AND s.expires_at > NOW()
         AND a.status = 1
-    `, [tokenHash(token)]);
+    `, [hashedToken]);
 
     if (result.rowCount !== 1) {
       reply.header('set-cookie', expiredSessionCookie());
@@ -68,6 +69,7 @@ async function adminPlugin(app, options) {
     }
 
     request.administrator = result.rows[0];
+    request.adminSessionTokenHash = hashedToken;
 
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       if (request.headers['x-csrf-token'] !== result.rows[0].csrf_token) {
@@ -174,6 +176,57 @@ async function adminPlugin(app, options) {
     return reply.code(204).send();
   });
 
+  app.patch('/api/admin/v1/password', {
+    preHandler: authenticate,
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['currentPassword', 'newPassword'],
+        properties: {
+          currentPassword: { type: 'string', minLength: 1, maxLength: 1024 },
+          newPassword: { type: 'string', minLength: 1, maxLength: 1024 }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const result = await database.query(`
+      SELECT password_hash
+      FROM platform_administrators
+      WHERE id = $1 AND status = 1
+    `, [request.administrator.id]);
+    const passwordHash = result.rows[0]?.password_hash;
+
+    if (!passwordHash || !await verifyPassword(request.body.currentPassword, passwordHash)) {
+      return reply.code(400).send({ error: 'Current password is incorrect' });
+    }
+
+    if (await verifyPassword(request.body.newPassword, passwordHash)) {
+      return reply.code(400).send({ error: 'New password must be different' });
+    }
+
+    const newPasswordHash = await hashPassword(request.body.newPassword);
+    await database.query(`
+      WITH updated_administrator AS (
+        UPDATE platform_administrators
+        SET password_hash = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING id
+      )
+      DELETE FROM admin_sessions
+      WHERE administrator_id = (SELECT id FROM updated_administrator)
+        AND token_hash <> $3
+    `, [newPasswordHash, request.administrator.id, request.adminSessionTokenHash]);
+    await audit(
+      request,
+      'administrator.password.change',
+      'platform_administrator',
+      request.administrator.public_id
+    );
+
+    return { message: 'Password changed; other sessions were revoked' };
+  });
+
   app.get('/api/admin/v1/tenants', { preHandler: authenticate }, async () => {
     const result = await database.query(`
       SELECT public_id, slug, name, status, created_at, updated_at
@@ -258,6 +311,48 @@ async function adminPlugin(app, options) {
       ORDER BY created_at
     `);
     return { administrators: result.rows };
+  });
+
+  app.get('/api/admin/v1/audit-log', {
+    preHandler: requireRole('super_admin'),
+    schema: {
+      querystring: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          before: { type: 'string', pattern: '^[1-9][0-9]*$' }
+        }
+      }
+    }
+  }, async (request) => {
+    const result = await database.query(`
+      SELECT
+        log.id,
+        log.action,
+        log.target_type,
+        log.target_id,
+        log.reason,
+        log.ip_address,
+        log.created_at,
+        administrator.public_id AS administrator_public_id,
+        administrator.email AS administrator_email,
+        administrator.display_name AS administrator_name,
+        tenant.public_id AS tenant_public_id,
+        tenant.name AS tenant_name
+      FROM admin_audit_log log
+      LEFT JOIN platform_administrators administrator
+        ON administrator.id = log.administrator_id
+      LEFT JOIN tenants tenant ON tenant.id = log.tenant_id
+      WHERE ($1::BIGINT IS NULL OR log.id < $1::BIGINT)
+      ORDER BY log.id DESC
+      LIMIT 100
+    `, [request.query.before ?? null]);
+
+    const entries = result.rows;
+    return {
+      entries,
+      nextBefore: entries.length === 100 ? entries.at(-1).id : null
+    };
   });
 }
 
