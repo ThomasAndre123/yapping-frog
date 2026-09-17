@@ -8,12 +8,13 @@ const elements = {
   tenantForm: document.querySelector('#tenant-form'),
   tenants: document.querySelector('#tenants'),
   empty: document.querySelector('#empty'),
-  administratorsSection: document.querySelector('#administrators-section'),
   administrators: document.querySelector('#administrators'),
   passwordForm: document.querySelector('#password-form'),
-  auditSection: document.querySelector('#audit-section'),
   auditEntries: document.querySelector('#audit-entries'),
-  moreAudit: document.querySelector('#more-audit')
+  moreAudit: document.querySelector('#more-audit'),
+  menuItems: [...document.querySelectorAll('.menu-item')],
+  panels: [...document.querySelectorAll('.panel')],
+  superAdminOnly: [...document.querySelectorAll('.super-admin-only')]
 };
 
 let csrfToken;
@@ -47,6 +48,19 @@ function setAuthenticated(authenticated) {
   elements.loginCard.classList.toggle('hidden', authenticated);
   elements.dashboard.classList.toggle('hidden', !authenticated);
   elements.account.classList.toggle('hidden', !authenticated);
+}
+
+function showPanel(panelId, updateHash = true) {
+  const menuItem = elements.menuItems.find((item) => item.dataset.panel === panelId && !item.classList.contains('hidden'));
+  if (!menuItem) return showPanel('tenants-section', updateHash);
+
+  for (const item of elements.menuItems) {
+    const active = item === menuItem;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-selected', String(active));
+  }
+  for (const panel of elements.panels) panel.classList.toggle('active', panel.id === panelId);
+  if (updateHash) history.replaceState(null, '', `#${panelId.replace('-section', '')}`);
 }
 
 async function loadTenants() {
@@ -108,7 +122,6 @@ async function loadAdministrators() {
     }
     elements.administrators.append(row);
   }
-  elements.administratorsSection.classList.remove('hidden');
 }
 
 async function loadAuditLog({ append = false } = {}) {
@@ -139,7 +152,6 @@ async function loadAuditLog({ append = false } = {}) {
 
   auditCursor = nextBefore;
   elements.moreAudit.classList.toggle('hidden', !nextBefore);
-  elements.auditSection.classList.remove('hidden');
 }
 
 async function initialize() {
@@ -149,8 +161,10 @@ async function initialize() {
     administrator = session.administrator;
     elements.identity.textContent = `${administrator.displayName} · ${administrator.role}`;
     elements.tenantForm.classList.toggle('hidden', administrator.role === 'support');
+    for (const item of elements.superAdminOnly) item.classList.toggle('hidden', administrator.role !== 'super_admin');
     setAuthenticated(true);
     await Promise.all([loadTenants(), loadAdministrators(), loadAuditLog()]);
+    showPanel(`${location.hash.slice(1) || 'tenants'}-section`, false);
   } catch {
     setAuthenticated(false);
   }
@@ -172,6 +186,13 @@ elements.loginForm.addEventListener('submit', async (event) => {
   } catch (error) { showNotice(error.message); }
 });
 
+for (const item of elements.menuItems) {
+  item.addEventListener('click', () => {
+    clearNotice();
+    showPanel(item.dataset.panel);
+  });
+}
+
 elements.tenantForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearNotice();
@@ -183,7 +204,7 @@ elements.tenantForm.addEventListener('submit', async (event) => {
         name: document.querySelector('#tenant-name').value
       })
     });
-    event.currentTarget.reset();
+    elements.tenantForm.reset();
     showNotice('Tenant created.', true);
     await loadTenants();
   } catch (error) { showNotice(error.message); }
@@ -206,7 +227,7 @@ elements.passwordForm.addEventListener('submit', async (event) => {
       method: 'PATCH',
       body: JSON.stringify({ currentPassword, newPassword })
     });
-    event.currentTarget.reset();
+    elements.passwordForm.reset();
     showNotice(result.message, true);
     if (administrator.role === 'super_admin') await loadAuditLog();
   } catch (error) { showNotice(error.message); }

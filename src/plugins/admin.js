@@ -69,7 +69,6 @@ async function adminPlugin(app, options) {
     }
 
     request.administrator = result.rows[0];
-    request.adminSessionTokenHash = hashedToken;
 
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       if (request.headers['x-csrf-token'] !== result.rows[0].csrf_token) {
@@ -207,16 +206,10 @@ async function adminPlugin(app, options) {
 
     const newPasswordHash = await hashPassword(request.body.newPassword);
     await database.query(`
-      WITH updated_administrator AS (
-        UPDATE platform_administrators
-        SET password_hash = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING id
-      )
-      DELETE FROM admin_sessions
-      WHERE administrator_id = (SELECT id FROM updated_administrator)
-        AND token_hash <> $3
-    `, [newPasswordHash, request.administrator.id, request.adminSessionTokenHash]);
+      UPDATE platform_administrators
+      SET password_hash = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [newPasswordHash, request.administrator.id]);
     await audit(
       request,
       'administrator.password.change',
@@ -224,7 +217,7 @@ async function adminPlugin(app, options) {
       request.administrator.public_id
     );
 
-    return { message: 'Password changed; other sessions were revoked' };
+    return { message: 'Password changed' };
   });
 
   app.get('/api/admin/v1/tenants', { preHandler: authenticate }, async () => {

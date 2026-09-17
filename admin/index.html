@@ -31,60 +31,82 @@
       </form>
     </section>
 
-    <section id="dashboard" class="hidden">
-      <div class="toolbar">
-        <div>
-          <h2>Tenants</h2>
-          <p>Manage customer organizations on this service.</p>
-        </div>
-        <button id="refresh" class="secondary">Refresh</button>
-      </div>
+    <section id="dashboard" class="dashboard hidden">
+      <nav class="admin-menu" aria-label="Administration sections">
+        <button type="button" class="menu-item active" data-panel="tenants-section" aria-selected="true">Tenants</button>
+        <button type="button" class="menu-item super-admin-only" data-panel="administrators-section" aria-selected="false">Administrators</button>
+        <button type="button" class="menu-item super-admin-only" data-panel="audit-section" aria-selected="false">Audit log</button>
+        <button type="button" class="menu-item" data-panel="security-section" aria-selected="false">Security</button>
+      </nav>
 
-      <form id="tenant-form" class="card inline-form">
-        <label>Slug<input id="tenant-slug" placeholder="acme-store" required pattern="[a-z0-9][a-z0-9-]{1,62}"></label>
-        <label>Name<input id="tenant-name" placeholder="Acme Store" required maxlength="200"></label>
-        <button type="submit">Create tenant</button>
-      </form>
-
-      <div class="card table-wrap">
-        <table>
-          <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-          <tbody id="tenants"></tbody>
-        </table>
-        <p id="empty" class="empty hidden">No tenants have been created.</p>
-      </div>
-
-      <div id="administrators-section" class="card hidden">
-        <h2>Administrators</h2>
-        <div id="administrators"></div>
-      </div>
-
-      <div class="settings-grid">
-        <form id="password-form" class="card">
-          <h2>Change password</h2>
-          <p>Changing your password signs out your other admin sessions.</p>
-          <label>Current password<input id="current-password" type="password" autocomplete="current-password" required></label>
-          <label>New password<input id="new-password" type="password" autocomplete="new-password" minlength="1" required></label>
-          <label>Confirm new password<input id="confirm-password" type="password" autocomplete="new-password" minlength="1" required></label>
-          <button type="submit">Change password</button>
-        </form>
-      </div>
-
-      <div id="audit-section" class="card hidden">
-        <div class="toolbar">
-          <div>
-            <h2>Administrator audit log</h2>
-            <p>Recent security and tenant-management activity.</p>
+      <div class="admin-content">
+        <section id="tenants-section" class="panel active" aria-labelledby="tenants-title">
+          <div class="toolbar">
+            <div>
+              <h2 id="tenants-title">Tenants</h2>
+              <p>Manage customer organizations on this service.</p>
+            </div>
+            <button id="refresh" class="secondary">Refresh</button>
           </div>
-          <button id="refresh-audit" class="secondary">Refresh</button>
-        </div>
-        <div class="table-wrap">
+
+          <form id="tenant-form" class="card inline-form">
+            <label>Slug<input id="tenant-slug" placeholder="acme-store" required pattern="[a-z0-9][a-z0-9-]{1,62}"></label>
+            <label>Name<input id="tenant-name" placeholder="Acme Store" required maxlength="200"></label>
+            <button type="submit">Create tenant</button>
+          </form>
+
+          <div class="card table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+              <tbody id="tenants"></tbody>
+            </table>
+            <p id="empty" class="empty hidden">No tenants have been created.</p>
+          </div>
+        </section>
+
+        <section id="administrators-section" class="panel" aria-labelledby="administrators-title">
+          <div class="toolbar">
+            <div>
+              <h2 id="administrators-title">Administrators</h2>
+              <p>Review accounts with access to this administration area.</p>
+            </div>
+          </div>
+          <div class="card"><div id="administrators"></div></div>
+        </section>
+
+        <section id="audit-section" class="panel" aria-labelledby="audit-title">
+          <div class="toolbar">
+            <div>
+              <h2 id="audit-title">Administrator audit log</h2>
+              <p>Recent security and tenant-management activity.</p>
+            </div>
+            <button id="refresh-audit" class="secondary">Refresh</button>
+          </div>
+          <div class="card table-wrap">
           <table>
             <thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Target</th><th>IP address</th></tr></thead>
             <tbody id="audit-entries"></tbody>
           </table>
-        </div>
-        <button id="more-audit" class="secondary hidden">Load older entries</button>
+            <button id="more-audit" class="secondary hidden">Load older entries</button>
+          </div>
+        </section>
+
+        <section id="security-section" class="panel" aria-labelledby="security-title">
+          <div class="toolbar">
+            <div>
+              <h2 id="security-title">Security</h2>
+              <p>Manage your administrator credentials.</p>
+            </div>
+          </div>
+          <form id="password-form" class="card password-form">
+            <h3>Change password</h3>
+            <p>Changing your password does not sign out active admin sessions.</p>
+            <label>Current password<input id="current-password" type="password" autocomplete="current-password" required></label>
+            <label>New password<input id="new-password" type="password" autocomplete="new-password" minlength="1" required></label>
+            <label>Confirm new password<input id="confirm-password" type="password" autocomplete="new-password" minlength="1" required></label>
+            <button type="submit">Change password</button>
+          </form>
+        </section>
       </div>
     </section>
   </main>

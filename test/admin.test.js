@@ -31,6 +31,9 @@ test('enabled admin plugin serves UI and protects its API', async (t) => {
   assert.match(page.body, /Yapping Frog Administration/);
   assert.match(page.body, /Change password/);
   assert.match(page.body, /Administrator audit log/);
+  assert.match(page.body, /class="admin-menu"/);
+  assert.match(page.body, /data-panel="tenants-section"/);
+  assert.match(page.body, /data-panel="security-section"/);
 
   const api = await app.inject({ method: 'GET', url: '/api/admin/v1/tenants' });
   assert.equal(api.statusCode, 401);
@@ -92,8 +95,9 @@ test('authenticated administrator can change password', async (t) => {
   });
 
   assert.equal(response.statusCode, 200);
-  assert.match(response.json().message, /other sessions were revoked/);
-  assert.equal(queries.some((sql) => sql.includes('DELETE FROM admin_sessions')), true);
+  assert.equal(response.json().message, 'Password changed');
+  assert.equal(queries.some((sql) => sql.includes('DELETE FROM admin_sessions')), false);
+  assert.equal(queries.some((sql) => sql.includes('UPDATE platform_administrators')), true);
   assert.equal(queries.some((sql) => sql.includes("'administrator.password.change'")), false);
   assert.equal(queries.some((sql) => sql.includes('INSERT INTO admin_audit_log')), true);
 
