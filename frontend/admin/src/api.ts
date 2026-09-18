@@ -45,11 +45,20 @@ export const adminApi = {
     request<{ tenant: Tenant }>('/api/admin/v1/tenants', {
       method: 'POST', csrfToken, body: JSON.stringify({ slug, name })
     }),
-  setTenantStatus: (csrfToken: string, tenant: Tenant, status: 1 | 2) =>
-    request<{ tenant: Tenant }>(
-      `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/status`,
-      { method: 'PATCH', csrfToken, body: JSON.stringify({ status }) }
-    ),
+  updateTenant: (
+    csrfToken: string,
+    tenant: Tenant,
+    details: {
+      slug: string;
+      name: string;
+      status: 1 | 2;
+      subscriptionType: string;
+      subscriptionValidUntil: string | null;
+    }
+  ) => request<{ tenant: Tenant }>(
+    `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}`,
+    { method: 'PATCH', csrfToken, body: JSON.stringify(details) }
+  ),
   administrators: () => request<{ administrators: AdministratorRecord[] }>(
     '/api/admin/v1/administrators'
   ),

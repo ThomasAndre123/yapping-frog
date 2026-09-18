@@ -17,6 +17,8 @@ export interface Tenant {
   slug: string;
   name: string;
   status: 1 | 2;
+  subscription_type: string;
+  subscription_valid_until: string | null;
   created_at: string;
   updated_at: string;
 }

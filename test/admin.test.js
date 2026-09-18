@@ -112,3 +112,85 @@ test('authenticated administrator can change password', async (t) => {
   assert.equal(auditResponse.statusCode, 200);
   assert.deepEqual(auditResponse.json(), { entries: [], nextBefore: null });
 });
+
+test('operator tenant edits and status changes are audited', async (t) => {
+  const tenantPublicId = '75d14795-8046-40c7-9810-20755f8f1430';
+  const queries = [];
+  const tenant = {
+    id: '7',
+    public_id: tenantPublicId,
+    slug: 'acme',
+    name: 'Acme Incorporated',
+    status: 2,
+    subscription_type: 'pro',
+    subscription_valid_until: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-09-18T00:00:00.000Z',
+    previous_status: 1
+  };
+  const app = buildApp({
+    logger: false,
+    adminEnabled: true,
+    dependencies: {
+      postgres: {
+        async check() {},
+        async query(sql, values) {
+          queries.push({ sql, values });
+          if (sql.includes('FROM admin_sessions s')) {
+            return {
+              rowCount: 1,
+              rows: [{
+                id: '1',
+                public_id: '8c608917-e797-47fd-af90-a752a2423d37',
+                email: 'operator@example.com',
+                display_name: 'Operator',
+                role: 'operator',
+                csrf_token: 'csrf-token'
+              }]
+            };
+          }
+          if (sql.includes('UPDATE tenants') && sql.includes('subscription_type')) {
+            return { rowCount: 1, rows: [{ ...tenant }] };
+          }
+          return { rowCount: 1, rows: [] };
+        }
+      },
+      redis: { async check() {} }
+    }
+  });
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'PATCH',
+    url: `/api/admin/v1/tenants/${tenantPublicId}`,
+    headers: {
+      cookie: 'admin_session=session-token',
+      'x-csrf-token': 'csrf-token'
+    },
+    payload: {
+      slug: 'acme',
+      name: 'Acme Incorporated',
+      status: 2,
+      subscriptionType: 'pro',
+      subscriptionValidUntil: null
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().tenant.subscription_type, 'pro');
+  assert.equal(response.json().tenant.subscription_valid_until, null);
+  const auditActions = queries
+    .filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'))
+    .map(({ values }) => values[1]);
+  assert.deepEqual(auditActions, ['tenant.update', 'tenant.status.update']);
+  const update = queries.find(({ sql }) =>
+    sql.includes('UPDATE tenants') && sql.includes('subscription_type'));
+  assert.deepEqual(update.values, [
+    'acme',
+    'Acme Incorporated',
+    2,
+    'pro',
+    null,
+    tenantPublicId
+  ]);
+});

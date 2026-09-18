@@ -12,13 +12,20 @@ p { color: #64748b; }
 .loading { margin-top: 70px; text-align: center; }
 form { display: grid; gap: 16px; }
 label { display: grid; gap: 7px; color: #334155; font-size: 14px; font-weight: 650; }
-input, button { border-radius: 8px; font: inherit; padding: 10px 12px; }
-input { border: 1px solid #cbd5e1; color: #172033; }
+input, select, button { border-radius: 8px; font: inherit; padding: 10px 12px; }
+input, select { border: 1px solid #cbd5e1; color: #172033; background: white; }
 button { border: 0; background: #2563eb; color: white; cursor: pointer; font-weight: 700; }
 button:hover { filter: brightness(.94); }
 button:disabled { cursor: not-allowed; opacity: .5; }
 button.secondary { background: #e2e8f0; color: #334155; }
 .inline-form { grid-template-columns: 1fr 2fr auto; align-items: end; }
+.edit-tenant-form { gap: 20px; }
+.form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.form-heading h3 { margin: 0 0 6px; }
+.form-heading p { margin-bottom: 0; }
+.edit-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.checkbox-label { display: flex; align-items: center; gap: 8px; width: fit-content; }
+.checkbox-label input { margin: 0; }
 .dashboard { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 28px; margin-top: 32px; }
 .admin-menu { display: flex; flex-direction: column; gap: 6px; align-self: start; position: sticky; top: 24px; }
 .menu-item { width: 100%; background: transparent; color: #475569; text-align: left; }
@@ -36,12 +43,16 @@ th, td { text-align: left; padding: 13px 10px; border-bottom: 1px solid #e2e8f0;
 th { color: #64748b; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
 .status { display: inline-block; border-radius: 999px; padding: 3px 8px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 800; }
 .status.suspended { background: #fee2e2; color: #991b1b; }
+.subscription-type { font-weight: 700; }
+.forever { color: #166534; font-weight: 700; }
+.expired { color: #991b1b; font-weight: 700; }
 .empty { padding: 30px; text-align: center; }
 .admin-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
 .more-audit { margin-top: 18px; }
 @media (max-width: 700px) {
   main { width: min(100% - 24px, 1100px); padding-top: 24px; }
   .inline-form { grid-template-columns: 1fr; }
+  .edit-fields { grid-template-columns: 1fr; }
   header { align-items: flex-start; }
   .dashboard { grid-template-columns: 1fr; gap: 20px; }
   .admin-menu { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }

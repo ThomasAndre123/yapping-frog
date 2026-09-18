@@ -219,7 +219,15 @@ async function adminPlugin(app, options) {
 
   app.get('/api/admin/v1/tenants', { preHandler: authenticate }, async () => {
     const result = await database.query(`
-      SELECT public_id, slug, name, status, created_at, updated_at
+      SELECT
+        public_id,
+        slug,
+        name,
+        status,
+        subscription_type,
+        subscription_valid_until,
+        created_at,
+        updated_at
       FROM tenants
       ORDER BY created_at DESC
       LIMIT 200
@@ -245,7 +253,16 @@ async function adminPlugin(app, options) {
       const result = await database.query(`
         INSERT INTO tenants (slug, name)
         VALUES (LOWER($1), $2)
-        RETURNING id, public_id, slug, name, status, created_at, updated_at
+        RETURNING
+          id,
+          public_id,
+          slug,
+          name,
+          status,
+          subscription_type,
+          subscription_valid_until,
+          created_at,
+          updated_at
       `, [request.body.slug.trim(), request.body.name.trim()]);
       const tenant = result.rows[0];
       await audit(request, 'tenant.create', 'tenant', tenant.public_id, tenant.id);
@@ -279,7 +296,16 @@ async function adminPlugin(app, options) {
       UPDATE tenants
       SET status = $1, updated_at = NOW()
       WHERE public_id = $2
-      RETURNING id, public_id, slug, name, status, created_at, updated_at
+      RETURNING
+        id,
+        public_id,
+        slug,
+        name,
+        status,
+        subscription_type,
+        subscription_valid_until,
+        created_at,
+        updated_at
     `, [request.body.status, request.params.publicId]);
 
     if (result.rowCount === 0) {
@@ -290,6 +316,106 @@ async function adminPlugin(app, options) {
     await audit(request, 'tenant.status.update', 'tenant', tenant.public_id, tenant.id);
     delete tenant.id;
     return { tenant };
+  });
+
+  app.patch('/api/admin/v1/tenants/:publicId', {
+    preHandler: requireRole('operator', 'super_admin'),
+    schema: {
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string', format: 'uuid' } }
+      },
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'slug',
+          'name',
+          'status',
+          'subscriptionType',
+          'subscriptionValidUntil'
+        ],
+        properties: {
+          slug: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{1,62}$' },
+          name: { type: 'string', minLength: 1, maxLength: 200 },
+          status: { type: 'integer', enum: [1, 2] },
+          subscriptionType: {
+            type: 'string',
+            pattern: '^[a-z0-9][a-z0-9_-]{0,49}$'
+          },
+          subscriptionValidUntil: {
+            anyOf: [
+              { type: 'string', format: 'date-time' },
+              { type: 'null' }
+            ]
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const result = await database.query(`
+        WITH previous AS (
+          SELECT id, status
+          FROM tenants
+          WHERE public_id = $6
+          FOR UPDATE
+        )
+        UPDATE tenants AS tenant
+        SET
+          slug = LOWER($1),
+          name = $2,
+          status = $3,
+          subscription_type = LOWER($4),
+          subscription_valid_until = $5,
+          updated_at = NOW()
+        FROM previous
+        WHERE tenant.id = previous.id
+        RETURNING
+          tenant.id,
+          tenant.public_id,
+          tenant.slug,
+          tenant.name,
+          tenant.status,
+          tenant.subscription_type,
+          tenant.subscription_valid_until,
+          tenant.created_at,
+          tenant.updated_at,
+          previous.status AS previous_status
+      `, [
+        request.body.slug.trim(),
+        request.body.name.trim(),
+        request.body.status,
+        request.body.subscriptionType.trim(),
+        request.body.subscriptionValidUntil,
+        request.params.publicId
+      ]);
+
+      if (result.rowCount === 0) {
+        return reply.code(404).send({ error: 'Tenant not found' });
+      }
+
+      const tenant = result.rows[0];
+      await audit(request, 'tenant.update', 'tenant', tenant.public_id, tenant.id);
+      if (tenant.previous_status !== tenant.status) {
+        await audit(
+          request,
+          'tenant.status.update',
+          'tenant',
+          tenant.public_id,
+          tenant.id
+        );
+      }
+      delete tenant.id;
+      delete tenant.previous_status;
+      return { tenant };
+    } catch (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'Tenant slug already exists' });
+      }
+      throw error;
+    }
   });
 
   app.get('/api/admin/v1/administrators', {

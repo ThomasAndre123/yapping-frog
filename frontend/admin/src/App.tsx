@@ -1,6 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { adminApi } from './api';
+import { AdministratorsPage } from './pages/AdministratorsPage';
+import { AuditPage } from './pages/AuditPage';
+import { SecurityPage } from './pages/SecurityPage';
+import { TenantsPage } from './pages/TenantsPage';
 import type {
   AdministratorIdentity,
   AdministratorRecord,
@@ -140,14 +144,25 @@ export function App() {
     }
   }
 
-  async function toggleTenant(tenant: Tenant) {
+  async function updateTenant(
+    tenant: Tenant,
+    details: {
+      slug: string;
+      name: string;
+      status: 1 | 2;
+      subscriptionType: string;
+      subscriptionValidUntil: string | null;
+    }
+  ) {
     if (!csrfToken) return;
     setNotice(null);
     try {
-      await adminApi.setTenantStatus(csrfToken, tenant, tenant.status === 1 ? 2 : 1);
+      await adminApi.updateTenant(csrfToken, tenant, details);
+      setNotice({ message: 'Tenant updated.', success: true });
       await loadTenants();
     } catch (error) {
       showError(error);
+      throw error;
     }
   }
 
@@ -223,110 +238,25 @@ export function App() {
           </nav>
 
           <div className="admin-content">
-            {panel === 'tenants' && <TenantsPanel
+            {panel === 'tenants' && <TenantsPage
               tenants={tenants}
               readOnly={administrator.role === 'support'}
               onCreate={createTenant}
               onRefresh={() => loadTenants().catch(showError)}
-              onToggle={toggleTenant}
+              onUpdate={updateTenant}
             />}
             {panel === 'administrators' && isSuperAdmin &&
-              <AdministratorsPanel administrators={administrators} />}
-            {panel === 'audit' && isSuperAdmin && <AuditPanel
+              <AdministratorsPage administrators={administrators} />}
+            {panel === 'audit' && isSuperAdmin && <AuditPage
               entries={auditEntries}
               cursor={auditCursor}
               onRefresh={() => loadAuditLog().catch(showError)}
               onMore={() => auditCursor && loadAuditLog(auditCursor).catch(showError)}
             />}
-            {panel === 'security' && <SecurityPanel onSubmit={changePassword} />}
+            {panel === 'security' && <SecurityPage onSubmit={changePassword} />}
           </div>
         </section>
       )}
     </main>
   );
-}
-
-function TenantsPanel({ tenants, readOnly, onCreate, onRefresh, onToggle }: {
-  tenants: Tenant[];
-  readOnly: boolean;
-  onCreate: (event: FormEvent<HTMLFormElement>) => void;
-  onRefresh: () => void;
-  onToggle: (tenant: Tenant) => void;
-}) {
-  return <section className="panel active" aria-labelledby="tenants-title">
-    <div className="toolbar">
-      <div><h2 id="tenants-title">Tenants</h2><p>Manage customer organizations on this service.</p></div>
-      <button type="button" className="secondary" onClick={onRefresh}>Refresh</button>
-    </div>
-    {!readOnly && <form className="card inline-form" onSubmit={onCreate}>
-      <label>Slug<input name="slug" placeholder="acme-store" required pattern="[a-z0-9][a-z0-9-]{1,62}" /></label>
-      <label>Name<input name="name" placeholder="Acme Store" required maxLength={200} /></label>
-      <button type="submit">Create tenant</button>
-    </form>}
-    <div className="card table-wrap">
-      <table>
-        <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-        <tbody>{tenants.map((tenant) => <tr key={tenant.public_id}>
-          <td>{tenant.name}</td><td>{tenant.slug}</td>
-          <td><span className={`status${tenant.status === 2 ? ' suspended' : ''}`}>
-            {tenant.status === 1 ? 'Active' : 'Suspended'}
-          </span></td>
-          <td>{new Date(tenant.created_at).toLocaleString()}</td>
-          <td><button type="button" className="secondary" disabled={readOnly} onClick={() => onToggle(tenant)}>
-            {tenant.status === 1 ? 'Suspend' : 'Activate'}
-          </button></td>
-        </tr>)}</tbody>
-      </table>
-      {tenants.length === 0 && <p className="empty">No tenants have been created.</p>}
-    </div>
-  </section>;
-}
-
-function AdministratorsPanel({ administrators }: { administrators: AdministratorRecord[] }) {
-  return <section className="panel active" aria-labelledby="administrators-title">
-    <div className="toolbar"><div><h2 id="administrators-title">Administrators</h2>
-      <p>Review accounts with access to this administration area.</p></div></div>
-    <div className="card">{administrators.map((item) => <div className="admin-row" key={item.public_id}>
-      <span>{item.display_name}</span><span>{item.email}</span><span>{item.role}</span>
-      <span>{item.status === 1 ? 'Active' : 'Disabled'}</span>
-    </div>)}</div>
-  </section>;
-}
-
-function AuditPanel({ entries, cursor, onRefresh, onMore }: {
-  entries: AuditEntry[];
-  cursor: string | null;
-  onRefresh: () => void;
-  onMore: () => void;
-}) {
-  return <section className="panel active" aria-labelledby="audit-title">
-    <div className="toolbar"><div><h2 id="audit-title">Administrator audit log</h2>
-      <p>Recent security and tenant-management activity.</p></div>
-      <button type="button" className="secondary" onClick={onRefresh}>Refresh</button></div>
-    <div className="card table-wrap"><table>
-      <thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Target</th><th>IP address</th></tr></thead>
-      <tbody>{entries.map((entry) => <tr key={entry.id}>
-        <td>{new Date(entry.created_at).toLocaleString()}</td>
-        <td>{entry.administrator_name ?? entry.administrator_email ?? 'Deleted administrator'}</td>
-        <td>{entry.action}</td><td>{entry.tenant_name ?? entry.target_id ?? entry.target_type}</td>
-        <td>{entry.ip_address ?? '—'}</td>
-      </tr>)}</tbody>
-    </table>{cursor && <button type="button" className="secondary more-audit" onClick={onMore}>
-      Load older entries
-    </button>}</div>
-  </section>;
-}
-
-function SecurityPanel({ onSubmit }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
-  return <section className="panel active" aria-labelledby="security-title">
-    <div className="toolbar"><div><h2 id="security-title">Security</h2>
-      <p>Manage your administrator credentials.</p></div></div>
-    <form className="card password-form" onSubmit={onSubmit}>
-      <h3>Change password</h3><p>Changing your password does not sign out active admin sessions.</p>
-      <label>Current password<input name="currentPassword" type="password" autoComplete="current-password" required /></label>
-      <label>New password<input name="newPassword" type="password" autoComplete="new-password" minLength={1} required /></label>
-      <label>Confirm new password<input name="confirmation" type="password" autoComplete="new-password" minLength={1} required /></label>
-      <button type="submit">Change password</button>
-    </form>
-  </section>;
 }

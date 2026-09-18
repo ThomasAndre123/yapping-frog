@@ -154,6 +154,16 @@ The first migration creates:
 Platform administrators deliberately have no `tenant_id`: they operate the
 service itself and are different from tenant agents or tenant owners.
 
+Tenant subscriptions use two columns added by migration 003:
+
+- `subscription_type` is a flexible lowercase plan identifier such as `free`,
+  `trial`, `pro`, or `enterprise`.
+- `subscription_valid_until` is the expiration instant. A `NULL` value means
+  the subscription remains valid forever.
+
+Platform operators and super administrators can edit these values from the
+tenant list. Subscription changes are recorded in the administrator audit log.
+
 ## Optional administration server
 
 The admin UI is an optional plugin. Keep it disabled on normal public app nodes:
