@@ -48,6 +48,13 @@ th { color: #64748b; font-size: 12px; letter-spacing: .05em; text-transform: upp
 .forever { color: #166534; font-weight: 700; }
 .expired { color: #991b1b; font-weight: 700; }
 .row-actions { display: flex; gap: 8px; }
+.resource-tabs { display: flex; gap: 6px; margin-top: 24px; border-bottom: 1px solid #cbd5e1; }
+.resource-tab { display: flex; align-items: center; gap: 8px; margin-bottom: -1px; border: 1px solid transparent; border-bottom-color: #cbd5e1; border-radius: 8px 8px 0 0; background: transparent; color: #64748b; }
+.resource-tab:hover { background: #e8eef8; filter: none; }
+.resource-tab.active { border-color: #cbd5e1; border-bottom-color: white; background: white; color: #1d4ed8; }
+.resource-tab span { min-width: 22px; border-radius: 999px; padding: 2px 6px; background: #e2e8f0; color: #475569; font-size: 11px; text-align: center; }
+.resource-tab.active span { background: #dbeafe; color: #1d4ed8; }
+.resource-tabs + .resource-section { margin-top: 0; border-top-left-radius: 0; }
 .resource-section h3 { margin-top: 0; }
 .resource-form, .resource-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 12px; align-items: end; padding: 16px 0; border-top: 1px solid #e2e8f0; }
 .resource-row { grid-template-columns: 1fr 2fr 130px minmax(180px, auto) auto; }
@@ -73,4 +80,6 @@ button.danger { background: #b91c1c; }
   .dashboard { grid-template-columns: 1fr; gap: 20px; }
   .admin-menu { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
   .menu-item { width: auto; white-space: nowrap; }
+  .resource-tabs { overflow-x: auto; }
+  .resource-tab { white-space: nowrap; }
 }

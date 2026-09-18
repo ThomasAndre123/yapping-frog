@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { adminApi } from '../api';
 import type { Tenant, TenantApiKey, TenantResources, TenantSite, TenantUser } from '../types';
@@ -12,6 +11,8 @@ interface Props {
   onNotice: (message: string, success?: boolean) => void;
 }
 
+type ResourceTab = 'sites' | 'users' | 'api-keys';
+
 function message(error: unknown) {
   return error instanceof Error ? error.message : 'An unexpected error occurred';
 }
@@ -23,6 +24,7 @@ function list(value: FormDataEntryValue | null) {
 export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNotice }: Props) {
   const [resources, setResources] = useState<TenantResources>();
   const [secret, setSecret] = useState<string>();
+  const [activeTab, setActiveTab] = useState<ResourceTab>('sites');
 
   const load = useCallback(async () => {
     setResources(await adminApi.tenantResources(tenant));
@@ -117,7 +119,17 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
     </div>
 
     {!resources ? <p className="card">Loading tenant data…</p> : <>
-      <ResourceSection title="Sites" description="Publishable widget keys and allowed website domains.">
+      <nav className="resource-tabs" role="tablist" aria-label="Tenant resources">
+        <ResourceTabButton id="sites" label="Sites" count={resources.sites.length}
+          activeTab={activeTab} onSelect={setActiveTab} />
+        <ResourceTabButton id="users" label="Users" count={resources.users.length}
+          activeTab={activeTab} onSelect={setActiveTab} />
+        <ResourceTabButton id="api-keys" label="API keys" count={resources.apiKeys.length}
+          activeTab={activeTab} onSelect={setActiveTab} />
+      </nav>
+
+      {activeTab === 'sites' && <ResourceSection id="sites" title="Sites"
+        description="Publishable widget keys and allowed website domains.">
         {!readOnly && <form className="resource-form" onSubmit={createSite}>
           <label>Site name<input name="name" required maxLength={200} /></label>
           <label>Allowed domains<input name="domains" required placeholder="example.com, *.example.com" /></label>
@@ -132,9 +144,10 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
             <code>{site.widget_key}</code><button type="submit">Save</button>
           </form>)}
         {resources.sites.length === 0 && <p className="empty">No sites configured.</p>}
-      </ResourceSection>
+      </ResourceSection>}
 
-      <ResourceSection title="Users" description="Tenant users carry their role directly; there is no membership table.">
+      {activeTab === 'users' && <ResourceSection id="users" title="Users"
+        description="Tenant users carry their role directly; there is no membership table.">
         {!readOnly && <form className="resource-form user-create-form" onSubmit={createUser}>
           <label>Email<input name="email" type="email" required /></label>
           <label>Display name<input name="displayName" required /></label>
@@ -152,9 +165,10 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
             <button type="submit">Save</button>
           </form>)}
         {resources.users.length === 0 && <p className="empty">No tenant users.</p>}
-      </ResourceSection>
+      </ResourceSection>}
 
-      <ResourceSection title="API keys" description="Secrets are shown once and stored only as hashes.">
+      {activeTab === 'api-keys' && <ResourceSection id="api-keys" title="API keys"
+        description="Secrets are shown once and stored only as hashes.">
         {secret && <div className="secret-box" role="status"><strong>Copy this secret now:</strong><code>{secret}</code>
           <button type="button" className="secondary" onClick={() => navigator.clipboard.writeText(secret)}>Copy</button></div>}
         {!readOnly && <form className="resource-form" onSubmit={createApiKey}>
@@ -168,15 +182,29 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
             () => adminApi.revokeApiKey(csrfToken, tenant, apiKey), 'API key revoked.'
           )} />)}
         {resources.apiKeys.length === 0 && <p className="empty">No API keys.</p>}
-      </ResourceSection>
+      </ResourceSection>}
     </>}
   </section>;
 }
 
-function ResourceSection({ title, description, children }: {
-  title: string; description: string; children: ReactNode;
+function ResourceTabButton({ id, label, count, activeTab, onSelect }: {
+  id: ResourceTab;
+  label: string;
+  count: number;
+  activeTab: ResourceTab;
+  onSelect: (tab: ResourceTab) => void;
 }) {
-  return <section className="card resource-section"><h3>{title}</h3><p>{description}</p>{children}</section>;
+  const active = activeTab === id;
+  return <button type="button" role="tab" id={`${id}-tab`} aria-selected={active}
+    aria-controls={`${id}-panel`} className={`resource-tab${active ? ' active' : ''}`}
+    onClick={() => onSelect(id)}>{label}<span>{count}</span></button>;
+}
+
+function ResourceSection({ id, title, description, children }: {
+  id: ResourceTab; title: string; description: string; children: React.ReactNode;
+}) {
+  return <section className="card resource-section" role="tabpanel" id={`${id}-panel`}
+    aria-labelledby={`${id}-tab`}><h3>{title}</h3><p>{description}</p>{children}</section>;
 }
 
 function SiteSummary({ site }: { site: TenantSite }) {
