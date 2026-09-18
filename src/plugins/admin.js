@@ -490,9 +490,9 @@ async function adminPlugin(app, options) {
     try {
       const result = await database.query(`
         UPDATE platform_administrators
-        SET email = LOWER($1), display_name = $2, role = $3, status = $4,
+        SET email = LOWER($1), display_name = $2, role = $3, status = $4::SMALLINT,
             password_hash = COALESCE($5, password_hash),
-            disabled_at = CASE WHEN $4 = 2 THEN COALESCE(disabled_at, NOW()) ELSE NULL END,
+            disabled_at = CASE WHEN $4::SMALLINT = 2 THEN COALESCE(disabled_at, NOW()) ELSE NULL END,
             updated_at = NOW()
         WHERE public_id = $6
         RETURNING public_id, email, display_name, role, status, created_at, last_login_at

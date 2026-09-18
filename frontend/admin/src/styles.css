@@ -58,6 +58,8 @@ th { color: #64748b; font-size: 12px; letter-spacing: .05em; text-transform: upp
 .resource-section h3 { margin-top: 0; }
 .resource-form, .resource-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 12px; align-items: end; padding: 16px 0; border-top: 1px solid #e2e8f0; }
 .resource-row { grid-template-columns: 1fr 2fr 130px minmax(180px, auto) auto; }
+.resource-value { display: grid; gap: 7px; align-self: stretch; align-content: center; }
+.resource-value > span { color: #334155; font-size: 14px; font-weight: 650; }
 .user-create-form, .user-row { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; }
 .summary-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 13px 0; border-top: 1px solid #e2e8f0; }
 .summary-row > * { flex: 1 1 140px; }

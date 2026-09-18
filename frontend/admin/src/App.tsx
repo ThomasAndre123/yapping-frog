@@ -163,7 +163,10 @@ export function App() {
     try {
       await adminApi.updateTenant(csrfToken, tenant, details);
       setNotice({ message: 'Tenant updated.', success: true });
-      await loadTenants();
+      await Promise.all([
+        loadTenants(),
+        ...(isSuperAdmin ? [loadAuditLog()] : [])
+      ]);
     } catch (error) {
       showError(error);
       throw error;
@@ -281,6 +284,7 @@ export function App() {
               onRefresh={() => loadTenants().catch(showError)}
               onUpdate={updateTenant}
               onNotice={showNotice}
+              onResourcesMutated={isSuperAdmin ? loadAuditLog : undefined}
             />}
             {panel === 'administrators' && isSuperAdmin &&
               <AdministratorsPage administrators={administrators}

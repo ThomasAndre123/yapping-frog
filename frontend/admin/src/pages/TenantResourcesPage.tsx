@@ -9,6 +9,7 @@ interface Props {
   readOnly: boolean;
   onClose: () => void;
   onNotice: (message: string, success?: boolean) => void;
+  onMutated?: () => Promise<void>;
 }
 
 type ResourceTab = 'sites' | 'users' | 'api-keys';
@@ -21,7 +22,9 @@ function list(value: FormDataEntryValue | null) {
   return String(value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNotice }: Props) {
+export function TenantResourcesPage({
+  tenant, csrfToken, readOnly, onClose, onNotice, onMutated
+}: Props) {
   const [resources, setResources] = useState<TenantResources>();
   const [secret, setSecret] = useState<string>();
   const [activeTab, setActiveTab] = useState<ResourceTab>('sites');
@@ -39,6 +42,7 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
       await operation();
       onNotice(success, true);
       await load();
+      await onMutated?.();
     } catch (error) {
       onNotice(message(error));
       throw error;
@@ -107,6 +111,7 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
       onNotice('API key created. Copy its secret now.', true);
       formElement.reset();
       await load();
+      await onMutated?.();
     } catch (error) {
       onNotice(message(error));
     }
@@ -129,7 +134,7 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
       </nav>
 
       {activeTab === 'sites' && <ResourceSection id="sites" title="Sites"
-        description="Publishable widget keys and allowed website domains.">
+        description="Publishable widget keys and allowed website domains. Add * for all domain whitelist.">
         {!readOnly && <form className="resource-form" onSubmit={createSite}>
           <label>Site name<input name="name" required maxLength={200} /></label>
           <label>Allowed domains<input name="domains" required placeholder="example.com, *.example.com, or * for all" /></label>
@@ -141,7 +146,8 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
             <label>Name<input name="name" defaultValue={site.name} required /></label>
             <label>Allowed domains<input name="domains" defaultValue={site.allowed_domains.join(', ')} required /></label>
             <label>Status<select name="status" defaultValue={site.status}><option value="1">Active</option><option value="2">Disabled</option></select></label>
-            <code>{site.widget_key}</code><button type="submit">Save</button>
+            <div className="resource-value"><span>Widget key</span><code>{site.widget_key}</code></div>
+            <button type="submit">Save</button>
           </form>)}
         {resources.sites.length === 0 && <p className="empty">No sites configured.</p>}
       </ResourceSection>}
@@ -208,7 +214,8 @@ function ResourceSection({ id, title, description, children }: {
 }
 
 function SiteSummary({ site }: { site: TenantSite }) {
-  return <div className="summary-row"><span>{site.name}</span><code>{site.widget_key}</code>
+  return <div className="summary-row"><span>{site.name}</span>
+    <div className="resource-value"><span>Widget key</span><code>{site.widget_key}</code></div>
     <span>{site.allowed_domains.join(', ')}</span><span>{site.status === 1 ? 'Active' : 'Disabled'}</span></div>;
 }
 

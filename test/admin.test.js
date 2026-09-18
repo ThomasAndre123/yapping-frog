@@ -178,6 +178,9 @@ test('super administrator can create and edit administrator accounts', async (t)
   const inserted = queries.find(({ sql }) => sql.includes('INSERT INTO platform_administrators'));
   assert.equal(inserted.values[0], 'agent@example.com');
   assert.match(inserted.values[3], /^scrypt\$/);
+  const administratorUpdate = queries.find(({ sql }) =>
+    sql.includes('UPDATE platform_administrators'));
+  assert.match(administratorUpdate.sql, /status = \$4::SMALLINT/);
   assert.deepEqual(queries
     .filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'))
     .map(({ values }) => values[1]), ['administrator.create', 'administrator.update']);

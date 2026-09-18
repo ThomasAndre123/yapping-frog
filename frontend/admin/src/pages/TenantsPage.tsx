@@ -19,6 +19,7 @@ interface TenantsPageProps {
   onRefresh: () => void;
   onUpdate: (tenant: Tenant, details: TenantUpdateDetails) => Promise<void>;
   onNotice: (message: string, success?: boolean) => void;
+  onResourcesMutated?: () => Promise<void>;
 }
 
 export function TenantsPage({
@@ -28,7 +29,8 @@ export function TenantsPage({
   onCreate,
   onRefresh,
   onUpdate,
-  onNotice
+  onNotice,
+  onResourcesMutated
 }: TenantsPageProps) {
   const [editing, setEditing] = useState<Tenant | null>(null);
   const [viewing, setViewing] = useState<Tenant | null>(null);
@@ -39,6 +41,7 @@ export function TenantsPage({
     readOnly={readOnly}
     onClose={() => setViewing(null)}
     onNotice={onNotice}
+    onMutated={onResourcesMutated}
   />;
 
   return <section className="panel active" aria-labelledby="tenants-title">
