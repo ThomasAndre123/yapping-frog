@@ -1,7 +1,8 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 import type { Tenant } from '../types';
 import { TenantResourcesPage } from './TenantResourcesPage';
+import type { ResourceTab } from './TenantResourcesPage';
 
 export interface TenantUpdateDetails {
   slug: string;
@@ -33,13 +34,39 @@ export function TenantsPage({
   onResourcesMutated
 }: TenantsPageProps) {
   const [editing, setEditing] = useState<Tenant | null>(null);
-  const [viewing, setViewing] = useState<Tenant | null>(null);
+  const [resourceRoute, setResourceRoute] = useState(readResourceRoute);
+  const viewing = resourceRoute
+    ? tenants.find((tenant) => tenant.slug === resourceRoute.slug) ?? null
+    : null;
+
+  useEffect(() => {
+    function syncRoute() { setResourceRoute(readResourceRoute()); }
+    window.addEventListener('popstate', syncRoute);
+    window.addEventListener('hashchange', syncRoute);
+    return () => {
+      window.removeEventListener('popstate', syncRoute);
+      window.removeEventListener('hashchange', syncRoute);
+    };
+  }, []);
+
+  function viewTenant(tenant: Tenant) {
+    const route = { slug: tenant.slug, tab: 'sites' as ResourceTab };
+    setResourceRoute(route);
+    setEditing(null);
+    window.history.pushState(null, '', `#tenants/${encodeURIComponent(tenant.slug)}/sites`);
+  }
+
+  function closeResources() {
+    setResourceRoute(null);
+    window.history.pushState(null, '', '#tenants');
+  }
 
   if (viewing) return <TenantResourcesPage
     tenant={viewing}
     csrfToken={csrfToken}
     readOnly={readOnly}
-    onClose={() => setViewing(null)}
+    initialTab={resourceRoute?.tab ?? 'sites'}
+    onClose={closeResources}
     onNotice={onNotice}
     onMutated={onResourcesMutated}
   />;
@@ -78,7 +105,7 @@ export function TenantsPage({
             {tenant.status === 1 ? 'Active' : 'Suspended'}
           </span></td>
           <td><div className="row-actions">
-            <button type="button" className="secondary" onClick={() => setViewing(tenant)}>Details</button>
+            <button type="button" className="secondary" onClick={() => viewTenant(tenant)}>Details</button>
             {!readOnly && <button type="button" onClick={() => setEditing(tenant)}>Edit</button>}
           </div></td>
         </tr>)}</tbody>
@@ -86,6 +113,16 @@ export function TenantsPage({
       {tenants.length === 0 && <p className="empty">No tenants have been created.</p>}
     </div>
   </section>;
+}
+
+function readResourceRoute(): { slug: string; tab: ResourceTab } | null {
+  const match = window.location.hash.match(/^#tenants\/([^/]+)(?:\/(sites|users|api-keys))?$/);
+  if (!match) return null;
+  try {
+    return { slug: decodeURIComponent(match[1]), tab: (match[2] ?? 'sites') as ResourceTab };
+  } catch {
+    return null;
+  }
 }
 
 function EditTenantForm({ tenant, onCancel, onSave }: {

@@ -86,7 +86,7 @@ export function App() {
   }, [loadDashboard]);
 
   useEffect(() => {
-    const requested = window.location.hash.slice(1) as Panel;
+    const requested = window.location.hash.slice(1).split('/')[0] as Panel;
     const allowed = panels.some(({ id, superAdminOnly }) =>
       id === requested && (!superAdminOnly || isSuperAdmin));
     if (allowed) setPanel(requested);
