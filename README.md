@@ -42,6 +42,86 @@ Expected response:
 
 The endpoint returns HTTP `503` with `status: "unavailable"` if PostgreSQL or Redis cannot be reached.
 
+`compose.yaml` is intentionally development-only. It mounts the source tree,
+uses the Dockerfile's `development` target, and publishes PostgreSQL and Redis
+to the host. Do not use it as the production deployment definition.
+
+## Production with Docker Compose
+
+[`compose.production.yaml`](./compose.production.yaml) is a standalone
+single-host production stack. It contains:
+
+- one Nginx gateway that supports HTTP and WebSocket proxying
+- multiple public application replicas with the admin plugin disabled
+- one PostgreSQL primary with persistent storage
+- one Redis instance with append-only persistence
+- an optional loopback-only administration instance
+- an on-demand migration job
+
+Only `gateway` publishes the public application port. PostgreSQL, Redis, and
+the application replicas communicate over private Compose networks. The admin
+service binds to `127.0.0.1` by default and must remain behind a VPN,
+SSH tunnel, or identity-aware proxy.
+
+Copy the production environment template and replace its example password:
+
+```bash
+cp .env.production.example .env.production
+```
+
+`POSTGRES_PASSWORD` and the password embedded in `DATABASE_URL` must match. If
+the password contains URL-special characters, percent-encode it in
+`DATABASE_URL`. Never commit `.env.production`.
+
+Build the production image and apply migrations before starting or updating
+the application:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yaml build
+docker compose --env-file .env.production -f compose.production.yaml \
+  --profile tools run --rm migrate
+docker compose --env-file .env.production -f compose.production.yaml up -d
+```
+
+The public service is available on `PUBLIC_PORT`, which defaults to 3000. The
+default replica count is two. Change `APP_REPLICAS` in `.env.production`, or
+override it for a deployment:
+
+```bash
+APP_REPLICAS=4 docker compose --env-file .env.production \
+  -f compose.production.yaml up -d
+```
+
+All replicas use the same PostgreSQL and Redis services. Regular Docker Compose
+scales containers only on one Docker host; use an orchestrator or hosting
+platform when replicas must span multiple machines.
+
+Start the optional administration instance separately:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yaml \
+  --profile admin up -d admin
+```
+
+It is then reachable only from the Docker host at
+`http://127.0.0.1:3001/admin/` unless the bind settings are deliberately
+changed. Public application replicas continue to return 404 for `/admin` and
+`/api/admin/v1/*`.
+
+Inspect or stop the production stack with the same explicit file and env file:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yaml ps
+docker compose --env-file .env.production -f compose.production.yaml logs -f app
+docker compose --env-file .env.production -f compose.production.yaml down
+```
+
+Do not add `--volumes` to the final command during normal operation: that would
+delete the Compose-managed PostgreSQL and Redis volumes. Volume persistence is
+not a backup; schedule tested PostgreSQL backups to storage outside this Docker
+host. For a serious production deployment, managed PostgreSQL and Redis are
+preferable, and `DATABASE_URL`/`REDIS_URL` can point to those services instead.
+
 ## Database setup and migrations
 
 Do not expose a web-based `/install` route. Even if the route is hidden, it can

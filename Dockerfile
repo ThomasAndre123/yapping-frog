@@ -18,7 +18,10 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+# NODE_ENV=production makes npm omit dev dependencies by default. Vite and
+# TypeScript are build-only dependencies, so include them for the asset build
+# and prune them from the final runtime installation afterwards.
+RUN npm ci --include=dev
 
 COPY src ./src
 COPY public ./public
