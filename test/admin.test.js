@@ -161,7 +161,7 @@ test('super administrator can create and edit administrator accounts', async (t)
     method: 'POST', url: '/api/admin/v1/administrators', headers,
     payload: {
       email: 'agent@example.com', displayName: 'Agent', role: 'support',
-      password: 'a secure temporary password'
+      password: 'abc'
     }
   });
   const updated = await app.inject({

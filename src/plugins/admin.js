@@ -439,7 +439,7 @@ async function adminPlugin(app, options) {
         email: { type: 'string', format: 'email', maxLength: 320 },
         displayName: { type: 'string', minLength: 1, maxLength: 200 },
         role: { type: 'string', enum: ['support', 'operator', 'super_admin'] },
-        password: { type: 'string', minLength: 12, maxLength: 1024 }
+        password: { type: 'string', minLength: 1, maxLength: 1024 }
       }
     } }
   }, async (request, reply) => {
@@ -475,7 +475,7 @@ async function adminPlugin(app, options) {
           displayName: { type: 'string', minLength: 1, maxLength: 200 },
           role: { type: 'string', enum: ['support', 'operator', 'super_admin'] },
           status: { type: 'integer', enum: [1, 2] },
-          password: { type: 'string', minLength: 12, maxLength: 1024 }
+          password: { type: 'string', minLength: 1, maxLength: 1024 }
         }
       }
     }

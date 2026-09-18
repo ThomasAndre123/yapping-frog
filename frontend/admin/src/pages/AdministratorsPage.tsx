@@ -141,7 +141,7 @@ function AdministratorForm({
       </label>}
       <label>{administrator ? 'New password (optional)' : 'Temporary password'}
         <input name="password" type="password" autoComplete="new-password"
-          required={!administrator} minLength={12} maxLength={1024} />
+          required={!administrator} minLength={1} maxLength={1024} />
       </label>
     </div>
     <div><button type="submit" disabled={saving}>{saving ? 'Saving…' : submitLabel}</button></div>
