@@ -170,6 +170,37 @@ export function App() {
     }
   }
 
+  async function createAdministrator(details: {
+    email: string; displayName: string; role: AdministratorRecord['role']; password: string;
+  }) {
+    if (!csrfToken) return;
+    setNotice(null);
+    try {
+      await adminApi.createAdministrator(csrfToken, details);
+      showNotice('Administrator created.', true);
+      await Promise.all([loadAdministrators(), loadAuditLog()]);
+    } catch (error) {
+      showError(error);
+      throw error;
+    }
+  }
+
+  async function updateAdministrator(administratorRecord: AdministratorRecord, details: {
+    email: string; displayName: string; role: AdministratorRecord['role']; status: 1 | 2;
+    password?: string;
+  }) {
+    if (!csrfToken) return;
+    setNotice(null);
+    try {
+      await adminApi.updateAdministrator(csrfToken, administratorRecord, details);
+      showNotice('Administrator updated.', true);
+      await Promise.all([loadAdministrators(), loadAuditLog()]);
+    } catch (error) {
+      showError(error);
+      throw error;
+    }
+  }
+
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!csrfToken) return;
@@ -252,7 +283,10 @@ export function App() {
               onNotice={showNotice}
             />}
             {panel === 'administrators' && isSuperAdmin &&
-              <AdministratorsPage administrators={administrators} />}
+              <AdministratorsPage administrators={administrators}
+                currentAdministratorId={administrator.publicId}
+                onCreate={createAdministrator} onUpdate={updateAdministrator}
+                onRefresh={() => loadAdministrators().catch(showError)} />}
             {panel === 'audit' && isSuperAdmin && <AuditPage
               entries={auditEntries}
               cursor={auditCursor}

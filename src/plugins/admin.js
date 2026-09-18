@@ -430,6 +430,86 @@ async function adminPlugin(app, options) {
     return { administrators: result.rows };
   });
 
+  app.post('/api/admin/v1/administrators', {
+    preHandler: requireRole('super_admin'),
+    schema: { body: {
+      type: 'object', additionalProperties: false,
+      required: ['email', 'displayName', 'role', 'password'],
+      properties: {
+        email: { type: 'string', format: 'email', maxLength: 320 },
+        displayName: { type: 'string', minLength: 1, maxLength: 200 },
+        role: { type: 'string', enum: ['support', 'operator', 'super_admin'] },
+        password: { type: 'string', minLength: 12, maxLength: 1024 }
+      }
+    } }
+  }, async (request, reply) => {
+    const passwordHash = await hashPassword(request.body.password);
+    try {
+      const result = await database.query(`
+        INSERT INTO platform_administrators (email, display_name, role, password_hash)
+        VALUES (LOWER($1), $2, $3, $4)
+        RETURNING public_id, email, display_name, role, status, created_at, last_login_at
+      `, [request.body.email.trim(), request.body.displayName.trim(), request.body.role, passwordHash]);
+      const administrator = result.rows[0];
+      await audit(request, 'administrator.create', 'platform_administrator', administrator.public_id);
+      return reply.code(201).send({ administrator });
+    } catch (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'Administrator email already exists' });
+      }
+      throw error;
+    }
+  });
+
+  app.patch('/api/admin/v1/administrators/:publicId', {
+    preHandler: requireRole('super_admin'),
+    schema: {
+      params: { type: 'object', required: ['publicId'], properties: {
+        publicId: { type: 'string', format: 'uuid' }
+      } },
+      body: {
+        type: 'object', additionalProperties: false,
+        required: ['email', 'displayName', 'role', 'status'],
+        properties: {
+          email: { type: 'string', format: 'email', maxLength: 320 },
+          displayName: { type: 'string', minLength: 1, maxLength: 200 },
+          role: { type: 'string', enum: ['support', 'operator', 'super_admin'] },
+          status: { type: 'integer', enum: [1, 2] },
+          password: { type: 'string', minLength: 12, maxLength: 1024 }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    if (request.params.publicId === request.administrator.public_id &&
+        (request.body.status !== 1 || request.body.role !== 'super_admin')) {
+      return reply.code(400).send({
+        error: 'You cannot disable or remove super administrator access from your own account'
+      });
+    }
+    const passwordHash = request.body.password ? await hashPassword(request.body.password) : null;
+    try {
+      const result = await database.query(`
+        UPDATE platform_administrators
+        SET email = LOWER($1), display_name = $2, role = $3, status = $4,
+            password_hash = COALESCE($5, password_hash),
+            disabled_at = CASE WHEN $4 = 2 THEN COALESCE(disabled_at, NOW()) ELSE NULL END,
+            updated_at = NOW()
+        WHERE public_id = $6
+        RETURNING public_id, email, display_name, role, status, created_at, last_login_at
+      `, [request.body.email.trim(), request.body.displayName.trim(), request.body.role,
+        request.body.status, passwordHash, request.params.publicId]);
+      if (result.rowCount === 0) return reply.code(404).send({ error: 'Administrator not found' });
+      const administrator = result.rows[0];
+      await audit(request, 'administrator.update', 'platform_administrator', administrator.public_id);
+      return { administrator };
+    } catch (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'Administrator email already exists' });
+      }
+      throw error;
+    }
+  });
+
   registerAdminTenantResourceRoutes(app, { authenticate, requireRole, audit });
 
   app.get('/api/admin/v1/audit-log', {

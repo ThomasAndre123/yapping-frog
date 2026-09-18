@@ -3,6 +3,7 @@
 body { margin: 0; }
 main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 80px; }
 header, .toolbar, #account { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.toolbar-actions { display: flex; align-items: center; gap: 10px; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 0; }
 p { color: #64748b; }
@@ -19,7 +20,7 @@ button:hover { filter: brightness(.94); }
 button:disabled { cursor: not-allowed; opacity: .5; }
 button.secondary { background: #e2e8f0; color: #334155; }
 .inline-form { grid-template-columns: 1fr 2fr auto; align-items: end; }
-.edit-tenant-form { gap: 20px; }
+.edit-tenant-form, .administrator-form { gap: 20px; }
 .form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .form-heading h3 { margin: 0 0 6px; }
 .form-heading p { margin-bottom: 0; }
@@ -59,6 +60,7 @@ code { overflow-wrap: anywhere; }
 button.danger { background: #b91c1c; }
 .empty { padding: 30px; text-align: center; }
 .admin-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+.you-label { display: inline-block; margin-left: 8px; border-radius: 999px; padding: 2px 7px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 800; }
 .more-audit { margin-top: 18px; }
 @media (max-width: 700px) {
   main { width: min(100% - 24px, 1100px); padding-top: 24px; }
@@ -66,6 +68,8 @@ button.danger { background: #b91c1c; }
   .edit-fields { grid-template-columns: 1fr; }
   .resource-form, .resource-row, .user-create-form, .user-row { grid-template-columns: 1fr; }
   header { align-items: flex-start; }
+  .toolbar { align-items: flex-start; }
+  .toolbar-actions { flex-wrap: wrap; justify-content: flex-end; }
   .dashboard { grid-template-columns: 1fr; gap: 20px; }
   .admin-menu { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
   .menu-item { width: auto; white-space: nowrap; }

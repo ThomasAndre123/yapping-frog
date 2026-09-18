@@ -105,6 +105,18 @@ export const adminApi = {
   administrators: () => request<{ administrators: AdministratorRecord[] }>(
     '/api/admin/v1/administrators'
   ),
+  createAdministrator: (csrfToken: string, details: {
+    email: string; displayName: string; role: AdministratorRecord['role']; password: string;
+  }) => request<{ administrator: AdministratorRecord }>('/api/admin/v1/administrators', {
+    method: 'POST', csrfToken, body: JSON.stringify(details)
+  }),
+  updateAdministrator: (csrfToken: string, administrator: AdministratorRecord, details: {
+    email: string; displayName: string; role: AdministratorRecord['role']; status: 1 | 2;
+    password?: string;
+  }) => request<{ administrator: AdministratorRecord }>(
+    `/api/admin/v1/administrators/${encodeURIComponent(administrator.public_id)}`,
+    { method: 'PATCH', csrfToken, body: JSON.stringify(details) }
+  ),
   auditLog: (before?: string) => request<{ entries: AuditEntry[]; nextBefore: string | null }>(
     `/api/admin/v1/audit-log${before ? `?before=${encodeURIComponent(before)}` : ''}`
   ),
