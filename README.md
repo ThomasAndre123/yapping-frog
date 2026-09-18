@@ -167,9 +167,9 @@ tenant list. Subscription changes are recorded in the administrator audit log.
 Migration 004 adds the tenant access resources:
 
 - `tenant_sites` contains publishable widget keys and allowed domains. Allowed
-  domains are exact hostnames or leading wildcards such as `*.example.com`;
-  arbitrary wildcard expressions are rejected so runtime checks remain a
-  lightweight exact or suffix comparison.
+  domains are exact hostnames, leading wildcards such as `*.example.com`, or a
+  standalone `*` to permit every origin. Other wildcard expressions are
+  rejected so runtime checks remain a lightweight exact or suffix comparison.
 - `tenant_users` stores the tenant role directly (`owner`, `administrator`, or
   `agent`) as well as login identity and status. There is intentionally no
   membership table while each user belongs to exactly one tenant.

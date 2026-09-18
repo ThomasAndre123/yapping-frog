@@ -132,7 +132,7 @@ export function TenantResourcesPage({ tenant, csrfToken, readOnly, onClose, onNo
         description="Publishable widget keys and allowed website domains.">
         {!readOnly && <form className="resource-form" onSubmit={createSite}>
           <label>Site name<input name="name" required maxLength={200} /></label>
-          <label>Allowed domains<input name="domains" required placeholder="example.com, *.example.com" /></label>
+          <label>Allowed domains<input name="domains" required placeholder="example.com, *.example.com, or * for all" /></label>
           <button type="submit">Add site</button>
         </form>}
         {resources.sites.map((site) => readOnly

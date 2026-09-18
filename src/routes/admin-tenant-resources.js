@@ -75,7 +75,7 @@ export function registerAdminTenantResourceRoutes(app, {
           name: { type: 'string', minLength: 1, maxLength: 200 },
           allowedDomains: {
             type: 'array', minItems: 1, maxItems: 100,
-            items: { type: 'string', minLength: 3, maxLength: 253 }
+            items: { type: 'string', minLength: 1, maxLength: 253 }
           }
         }
       }
@@ -111,7 +111,7 @@ export function registerAdminTenantResourceRoutes(app, {
           name: { type: 'string', minLength: 1, maxLength: 200 },
           allowedDomains: {
             type: 'array', minItems: 1, maxItems: 100,
-            items: { type: 'string', minLength: 3, maxLength: 253 }
+            items: { type: 'string', minLength: 1, maxLength: 253 }
           },
           status: { type: 'integer', enum: [1, 2] }
         }

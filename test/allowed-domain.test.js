@@ -21,7 +21,15 @@ test('allowed domains support exact hosts and leading subdomain wildcards', () =
   assert.equal(isHostnameAllowed('notexample.com', domains), false);
 });
 
-test('allowed domains reject broad or embedded wildcard patterns', () => {
-  assert.throws(() => normalizeAllowedDomains(['*']), /Invalid allowed domain/);
+test('a standalone wildcard allows every valid origin hostname', () => {
+  const domains = normalizeAllowedDomains([' * ', '*']);
+
+  assert.deepEqual(domains, ['*']);
+  assert.equal(isHostnameAllowed('example.com', domains), true);
+  assert.equal(isHostnameAllowed('anything.example.org', domains), true);
+  assert.equal(isHostnameAllowed('localhost', domains), true);
+});
+
+test('allowed domains reject embedded wildcard patterns', () => {
   assert.throws(() => normalizeAllowedDomains(['shop.*.com']), /Invalid allowed domain/);
 });

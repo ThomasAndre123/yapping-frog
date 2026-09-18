@@ -2,6 +2,7 @@ const EXACT_HOST_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]
 
 export function normalizeAllowedDomain(value) {
   const normalized = value.trim().toLowerCase().replace(/\.$/, '');
+  if (normalized === '*') return '*';
   const hostname = normalized.startsWith('*.') ? normalized.slice(2) : normalized;
 
   if (!EXACT_HOST_PATTERN.test(hostname) || !hostname.includes('.')) {
@@ -19,6 +20,7 @@ export function isHostnameAllowed(hostname, allowedDomains) {
   const candidate = hostname.toLowerCase().replace(/\.$/, '');
 
   return allowedDomains.some((pattern) => {
+    if (pattern === '*') return true;
     if (!pattern.startsWith('*.')) return candidate === pattern;
     const suffix = pattern.slice(1);
     return candidate.endsWith(suffix) && candidate.length > suffix.length;
