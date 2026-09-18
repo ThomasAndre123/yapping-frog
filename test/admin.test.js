@@ -79,6 +79,7 @@ test('successful administrator login and logout are audited', async (t) => {
 
   const login = await app.inject({
     method: 'POST', url: '/api/admin/v1/session',
+    headers: { 'user-agent': 'Yapping Frog Admin Test/1.0' },
     payload: { email: 'admin@example.com', password: 'abc' }
   });
   assert.equal(login.statusCode, 200);
@@ -96,6 +97,7 @@ test('successful administrator login and logout are audited', async (t) => {
     'administrator.session.logout'
   ]);
   assert.deepEqual(auditQueries.map(({ values }) => values[3]), [publicId, publicId]);
+  assert.equal(auditQueries[0].values[4].userAgent, 'Yapping Frog Admin Test/1.0');
   assert.equal(auditQueries.some(({ values }) => JSON.stringify(values).includes('abc')), false);
 });
 

@@ -163,7 +163,10 @@ async function adminPlugin(app, options) {
       'administrator.session.login',
       'platform_administrator',
       administrator.public_id,
-      { sessionStarted: true },
+      {
+        sessionStarted: true,
+        userAgent: request.headers['user-agent']?.slice(0, 512) ?? null
+      },
       administrator.id
     );
 
