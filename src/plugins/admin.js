@@ -89,7 +89,14 @@ async function adminPlugin(app, options) {
     };
   }
 
-  async function audit(request, action, targetType, targetId, metadata = null) {
+  async function audit(
+    request,
+    action,
+    targetType,
+    targetId,
+    metadata = null,
+    administratorId = request.administrator?.id
+  ) {
     await database.query(`
       INSERT INTO admin_audit_log (
         administrator_id,
@@ -100,7 +107,7 @@ async function adminPlugin(app, options) {
         ip_address
       ) VALUES ($1, $2, $3, $4, $5, $6)
     `, [
-      request.administrator.id,
+      administratorId,
       action,
       targetType,
       targetId,
@@ -125,7 +132,7 @@ async function adminPlugin(app, options) {
     }
   }, async (request, reply) => {
     const result = await database.query(`
-      SELECT id, password_hash
+      SELECT id, public_id, password_hash
       FROM platform_administrators
       WHERE LOWER(email) = LOWER($1) AND status = 1
     `, [request.body.email.trim()]);
@@ -151,6 +158,14 @@ async function adminPlugin(app, options) {
     await database.query(`
       UPDATE platform_administrators SET last_login_at = NOW() WHERE id = $1
     `, [administrator.id]);
+    await audit(
+      request,
+      'administrator.session.login',
+      'platform_administrator',
+      administrator.public_id,
+      { sessionStarted: true },
+      administrator.id
+    );
 
     reply.header('set-cookie', sessionCookie(token, maxAgeSeconds));
     return { csrfToken };
@@ -168,6 +183,13 @@ async function adminPlugin(app, options) {
 
   app.delete('/api/admin/v1/session', { preHandler: authenticate }, async (request, reply) => {
     const token = cookieValue(request.headers.cookie, 'admin_session');
+    await audit(
+      request,
+      'administrator.session.logout',
+      'platform_administrator',
+      request.administrator.public_id,
+      { sessionEnded: true }
+    );
     await database.query('DELETE FROM admin_sessions WHERE token_hash = $1', [tokenHash(token)]);
     reply.header('set-cookie', expiredSessionCookie());
     return reply.code(204).send();

@@ -48,6 +48,57 @@ test('enabled admin plugin serves UI and protects its API', async (t) => {
   assert.equal(auditApi.statusCode, 401);
 });
 
+test('successful administrator login and logout are audited', async (t) => {
+  const passwordHash = await hashPassword('abc');
+  const publicId = '8c608917-e797-47fd-af90-a752a2423d37';
+  const queries = [];
+  const app = buildApp({
+    logger: false,
+    adminEnabled: true,
+    dependencies: {
+      postgres: {
+        async check() {},
+        async query(sql, values) {
+          queries.push({ sql, values });
+          if (sql.includes('WHERE LOWER(email)')) {
+            return { rowCount: 1, rows: [{ id: '1', public_id: publicId, password_hash: passwordHash }] };
+          }
+          if (sql.includes('FROM admin_sessions s')) {
+            return { rowCount: 1, rows: [{
+              id: '1', public_id: publicId, email: 'admin@example.com',
+              display_name: 'Administrator', role: 'super_admin', csrf_token: 'csrf-token'
+            }] };
+          }
+          return { rowCount: 1, rows: [] };
+        }
+      },
+      redis: { async check() {} }
+    }
+  });
+  t.after(() => app.close());
+
+  const login = await app.inject({
+    method: 'POST', url: '/api/admin/v1/session',
+    payload: { email: 'admin@example.com', password: 'abc' }
+  });
+  assert.equal(login.statusCode, 200);
+
+  const sessionCookie = login.headers['set-cookie'].split(';')[0];
+  const logout = await app.inject({
+    method: 'DELETE', url: '/api/admin/v1/session',
+    headers: { cookie: sessionCookie, 'x-csrf-token': 'csrf-token' }
+  });
+  assert.equal(logout.statusCode, 204);
+
+  const auditQueries = queries.filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'));
+  assert.deepEqual(auditQueries.map(({ values }) => values[1]), [
+    'administrator.session.login',
+    'administrator.session.logout'
+  ]);
+  assert.deepEqual(auditQueries.map(({ values }) => values[3]), [publicId, publicId]);
+  assert.equal(auditQueries.some(({ values }) => JSON.stringify(values).includes('abc')), false);
+});
+
 test('authenticated administrator can change password', async (t) => {
   const storedHash = await hashPassword('current password value');
   const queries = [];
