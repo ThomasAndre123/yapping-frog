@@ -65,6 +65,7 @@ export interface TenantUser {
   status: 1 | 2;
   created_at: string;
   last_login_at: string | null;
+  password?: string;
 }
 
 export interface TenantApiKey {

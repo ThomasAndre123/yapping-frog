@@ -207,23 +207,28 @@ export function registerAdminTenantResourceRoutes(app, {
           email: { type: 'string', format: 'email', maxLength: 320 },
           displayName: { type: 'string', minLength: 1, maxLength: 200 },
           role: { type: 'string', enum: ['owner', 'administrator', 'agent'] },
-          status: { type: 'integer', enum: [1, 2] }
+          status: { type: 'integer', enum: [1, 2] },
+          password: { type: 'string', minLength: 8, maxLength: 1024 }
         }
       }
     }
   }, async (request, reply) => {
     try {
+      const passwordHash = request.body.password
+        ? await hashPassword(request.body.password)
+        : null;
       const result = await database.query(`
         UPDATE tenant_users tenant_user
-        SET email = LOWER($1), display_name = $2, role = $3, status = $4, updated_at = NOW()
+        SET email = LOWER($1), display_name = $2, role = $3, status = $4,
+            password_hash = COALESCE($5::TEXT, password_hash), updated_at = NOW()
         FROM tenants tenant
-        WHERE tenant_user.public_id = $5 AND tenant.public_id = $6
+        WHERE tenant_user.public_id = $6 AND tenant.public_id = $7
           AND tenant_user.tenant_id = tenant.id
         RETURNING tenant_user.public_id, tenant_user.email, tenant_user.display_name,
                   tenant_user.role, tenant_user.status, tenant_user.created_at,
                   tenant_user.last_login_at
       `, [request.body.email.trim(), request.body.displayName.trim(), request.body.role,
-        request.body.status, request.params.resourceId, request.params.publicId]);
+        request.body.status, passwordHash, request.params.resourceId, request.params.publicId]);
       if (result.rowCount === 0) return reply.code(404).send({ error: 'User not found' });
       const user = result.rows[0];
       await audit(request, 'tenant.user.update', 'tenant_user', user.public_id, {
@@ -231,7 +236,8 @@ export function registerAdminTenantResourceRoutes(app, {
         email: user.email,
         displayName: user.display_name,
         role: user.role,
-        status: user.status
+        status: user.status,
+        passwordChanged: Boolean(request.body.password)
       });
       return { user };
     } catch (error) {

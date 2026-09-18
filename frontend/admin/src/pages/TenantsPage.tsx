@@ -66,6 +66,7 @@ export function TenantsPage({
     csrfToken={csrfToken}
     readOnly={readOnly}
     initialTab={resourceRoute?.tab ?? 'sites'}
+    initialUserId={resourceRoute?.userId}
     onClose={closeResources}
     onNotice={onNotice}
     onMutated={onResourcesMutated}
@@ -115,11 +116,19 @@ export function TenantsPage({
   </section>;
 }
 
-function readResourceRoute(): { slug: string; tab: ResourceTab } | null {
-  const match = window.location.hash.match(/^#tenants\/([^/]+)(?:\/(sites|users|api-keys))?$/);
+function readResourceRoute(): { slug: string; tab: ResourceTab; userId?: string } | null {
+  const match = window.location.hash.match(
+    /^#tenants\/([^/]+)(?:\/(sites|users|api-keys))?(?:\/([^/]+))?$/
+  );
   if (!match) return null;
   try {
-    return { slug: decodeURIComponent(match[1]), tab: (match[2] ?? 'sites') as ResourceTab };
+    const tab = (match[2] ?? 'sites') as ResourceTab;
+    if (match[3] && tab !== 'users') return null;
+    return {
+      slug: decodeURIComponent(match[1]),
+      tab,
+      ...(match[3] ? { userId: decodeURIComponent(match[3]) } : {})
+    };
   } catch {
     return null;
   }

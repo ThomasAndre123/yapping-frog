@@ -367,6 +367,59 @@ test('operator tenant edits and status changes are audited', async (t) => {
   ]);
 });
 
+test('operator can update a tenant user password without auditing the secret', async (t) => {
+  const tenantPublicId = '75d14795-8046-40c7-9810-20755f8f1430';
+  const userPublicId = '594a5330-3e44-45c1-a3dc-8b0f1dc6f39b';
+  const queries = [];
+  const app = buildApp({
+    logger: false,
+    adminEnabled: true,
+    dependencies: {
+      postgres: {
+        async check() {},
+        async query(sql, values) {
+          queries.push({ sql, values });
+          if (sql.includes('FROM admin_sessions s')) {
+            return { rowCount: 1, rows: [{
+              id: '1', public_id: '8c608917-e797-47fd-af90-a752a2423d37',
+              email: 'operator@example.com', display_name: 'Operator', role: 'operator',
+              csrf_token: 'csrf-token'
+            }] };
+          }
+          if (sql.includes('UPDATE tenant_users tenant_user')) {
+            return { rowCount: 1, rows: [{
+              public_id: userPublicId, email: 'user@example.com', display_name: 'User',
+              role: 'agent', status: 1, created_at: '2026-01-01T00:00:00.000Z',
+              last_login_at: null
+            }] };
+          }
+          return { rowCount: 1, rows: [] };
+        }
+      },
+      redis: { async check() {} }
+    }
+  });
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'PATCH',
+    url: `/api/admin/v1/tenants/${tenantPublicId}/users/${userPublicId}`,
+    headers: { cookie: 'admin_session=session-token', 'x-csrf-token': 'csrf-token' },
+    payload: {
+      email: 'user@example.com', displayName: 'User', role: 'agent', status: 1,
+      password: 'new password'
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  const update = queries.find(({ sql }) => sql.includes('UPDATE tenant_users tenant_user'));
+  assert.match(update.values[4], /^scrypt\$/);
+  assert.equal(JSON.stringify(queries).includes('new password'), false);
+  const audit = queries.find(({ sql }) => sql.includes('INSERT INTO admin_audit_log'));
+  assert.equal(audit.values[4].passwordChanged, true);
+  assert.equal(audit.values[4].password, undefined);
+});
+
 test('support can view tenant resources but cannot modify them', async (t) => {
   const tenantPublicId = '75d14795-8046-40c7-9810-20755f8f1430';
   const app = buildApp({

@@ -88,7 +88,8 @@ export const adminApi = {
     request<{ user: TenantUser }>(
       `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/users/${encodeURIComponent(user.public_id)}`,
       { method: 'PATCH', csrfToken, body: JSON.stringify({
-        email: user.email, displayName: user.display_name, role: user.role, status: user.status
+        email: user.email, displayName: user.display_name, role: user.role, status: user.status,
+        ...('password' in user && user.password ? { password: user.password } : {})
       }) }
     ),
   createApiKey: (csrfToken: string, tenant: Tenant, details: {

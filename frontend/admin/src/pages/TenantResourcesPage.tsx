@@ -4,6 +4,7 @@ import { adminApi } from '../api';
 import type { Tenant, TenantApiKey, TenantResources, TenantSite, TenantUser } from '../types';
 import { ApiKeysTab } from './tenant-resources/ApiKeysTab';
 import { SitesTab } from './tenant-resources/SitesTab';
+import { TenantUserEditPage } from './tenant-resources/TenantUserEditPage';
 import { UsersTab } from './tenant-resources/UsersTab';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   csrfToken: string;
   readOnly: boolean;
   initialTab: ResourceTab;
+  initialUserId?: string;
   onClose: () => void;
   onNotice: (message: string, success?: boolean) => void;
   onMutated?: () => Promise<void>;
@@ -19,11 +21,12 @@ interface Props {
 export type ResourceTab = 'sites' | 'users' | 'api-keys';
 
 export function TenantResourcesPage({
-  tenant, csrfToken, readOnly, initialTab, onClose, onNotice, onMutated
+  tenant, csrfToken, readOnly, initialTab, initialUserId, onClose, onNotice, onMutated
 }: Props) {
   const [resources, setResources] = useState<TenantResources>();
   const [secret, setSecret] = useState<string>();
   const [activeTab, setActiveTab] = useState<ResourceTab>(initialTab);
+  const [editingUserId, setEditingUserId] = useState(initialUserId);
 
   const load = useCallback(async () => {
     setResources(await adminApi.tenantResources(tenant));
@@ -34,6 +37,7 @@ export function TenantResourcesPage({
   }, [load, onNotice]);
 
   useEffect(() => setActiveTab(initialTab), [initialTab]);
+  useEffect(() => setEditingUserId(initialUserId), [initialUserId]);
 
   async function perform(operation: () => Promise<unknown>, success: string) {
     try {
@@ -49,8 +53,24 @@ export function TenantResourcesPage({
 
   function selectTab(tab: ResourceTab) {
     setActiveTab(tab);
+    setEditingUserId(undefined);
     window.history.pushState(null, '', `#tenants/${encodeURIComponent(tenant.slug)}/${tab}`);
   }
+
+  function editUser(user: TenantUser) {
+    setEditingUserId(user.public_id);
+    window.history.pushState(null, '',
+      `#tenants/${encodeURIComponent(tenant.slug)}/users/${encodeURIComponent(user.public_id)}`);
+  }
+
+  function closeUserEditor() {
+    setEditingUserId(undefined);
+    window.history.pushState(null, '', `#tenants/${encodeURIComponent(tenant.slug)}/users`);
+  }
+
+  const editingUser = editingUserId
+    ? resources?.users.find((user) => user.public_id === editingUserId)
+    : undefined;
 
   return <section className="panel active tenant-resources" aria-labelledby="resources-title">
     <div className="toolbar">
@@ -58,7 +78,10 @@ export function TenantResourcesPage({
       <button type="button" className="secondary" onClick={onClose}>Back to tenants</button>
     </div>
 
-    {!resources ? <p className="card">Loading tenant data…</p> : <>
+    {!resources ? <p className="card">Loading tenant data…</p> : editingUser ?
+      <TenantUserEditPage user={editingUser} onBack={closeUserEditor}
+        onSave={(user) => perform(
+          () => adminApi.updateTenantUser(csrfToken, tenant, user), 'Tenant user updated.')} /> : <>
       <nav className="resource-tabs" role="tablist" aria-label="Tenant resources">
         <ResourceTabButton id="sites" label="Sites" count={resources.sites.length}
           activeTab={activeTab} onSelect={selectTab} />
@@ -77,8 +100,7 @@ export function TenantResourcesPage({
       {activeTab === 'users' && <UsersTab users={resources.users} readOnly={readOnly}
         onCreate={(details) => perform(
           () => adminApi.createTenantUser(csrfToken, tenant, details), 'Tenant user created.')}
-        onUpdate={(user: TenantUser) => perform(
-          () => adminApi.updateTenantUser(csrfToken, tenant, user), 'Tenant user updated.')} />}
+        onEdit={editUser} />}
 
       {activeTab === 'api-keys' && <ApiKeysTab apiKeys={resources.apiKeys} secret={secret}
         readOnly={readOnly}
