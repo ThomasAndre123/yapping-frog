@@ -194,3 +194,46 @@ test('operator tenant edits and status changes are audited', async (t) => {
     tenantPublicId
   ]);
 });
+
+test('support can view tenant resources but cannot modify them', async (t) => {
+  const tenantPublicId = '75d14795-8046-40c7-9810-20755f8f1430';
+  const app = buildApp({
+    logger: false,
+    adminEnabled: true,
+    dependencies: {
+      postgres: {
+        async check() {},
+        async query(sql) {
+          if (sql.includes('FROM admin_sessions s')) {
+            return { rowCount: 1, rows: [{
+              id: '1', public_id: '8c608917-e797-47fd-af90-a752a2423d37',
+              email: 'support@example.com', display_name: 'Support', role: 'support',
+              csrf_token: 'csrf-token'
+            }] };
+          }
+          if (sql.includes('SELECT id, public_id FROM tenants')) {
+            return { rowCount: 1, rows: [{ id: '7', public_id: tenantPublicId }] };
+          }
+          return { rowCount: 0, rows: [] };
+        }
+      },
+      redis: { async check() {} }
+    }
+  });
+  t.after(() => app.close());
+  const headers = { cookie: 'admin_session=session-token' };
+
+  const view = await app.inject({
+    method: 'GET', url: `/api/admin/v1/tenants/${tenantPublicId}/resources`, headers
+  });
+  const modify = await app.inject({
+    method: 'POST',
+    url: `/api/admin/v1/tenants/${tenantPublicId}/sites`,
+    headers: { ...headers, 'x-csrf-token': 'csrf-token' },
+    payload: { name: 'Store', allowedDomains: ['example.com'] }
+  });
+
+  assert.equal(view.statusCode, 200);
+  assert.deepEqual(view.json(), { sites: [], users: [], apiKeys: [] });
+  assert.equal(modify.statusCode, 403);
+});

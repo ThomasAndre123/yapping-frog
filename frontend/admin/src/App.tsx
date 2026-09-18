@@ -43,6 +43,10 @@ export function App() {
     setNotice({ message: errorMessage(error) });
   }, []);
 
+  const showNotice = useCallback((message: string, success = false) => {
+    setNotice({ message, success });
+  }, []);
+
   const loadTenants = useCallback(async () => {
     const result = await adminApi.tenants();
     setTenants(result.tenants);
@@ -241,9 +245,11 @@ export function App() {
             {panel === 'tenants' && <TenantsPage
               tenants={tenants}
               readOnly={administrator.role === 'support'}
+              csrfToken={csrfToken ?? ''}
               onCreate={createTenant}
               onRefresh={() => loadTenants().catch(showError)}
               onUpdate={updateTenant}
+              onNotice={showNotice}
             />}
             {panel === 'administrators' && isSuperAdmin &&
               <AdministratorsPage administrators={administrators} />}

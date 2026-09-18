@@ -23,6 +23,10 @@ function createDependencies({ databaseUrl, redisUrl, logger }) {
     logger.warn({ err: error }, 'Redis connection error');
   });
 
+  async function connectRedis() {
+    if (!redis.isOpen) await redis.connect();
+  }
+
   return {
     postgres: {
       async query(text, values) {
@@ -37,11 +41,20 @@ function createDependencies({ databaseUrl, redisUrl, logger }) {
     },
     redis: {
       async check() {
-        if (!redis.isOpen) {
-          await redis.connect();
-        }
-
+        await connectRedis();
         await redis.ping();
+      },
+      async get(key) {
+        await connectRedis();
+        return redis.get(key);
+      },
+      async setEx(key, seconds, value) {
+        await connectRedis();
+        return redis.setEx(key, seconds, value);
+      },
+      async del(key) {
+        await connectRedis();
+        return redis.del(key);
       },
       async close() {
         if (redis.isOpen) {

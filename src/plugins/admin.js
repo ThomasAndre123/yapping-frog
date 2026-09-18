@@ -6,6 +6,7 @@ import staticPlugin from '@fastify/static';
 import fp from 'fastify-plugin';
 
 import { hashPassword, verifyPassword } from '../security/password.js';
+import { registerAdminTenantResourceRoutes } from '../routes/admin-tenant-resources.js';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const adminDirectory = path.resolve(currentDirectory, '../../dist/admin');
@@ -428,6 +429,8 @@ async function adminPlugin(app, options) {
     `);
     return { administrators: result.rows };
   });
+
+  registerAdminTenantResourceRoutes(app, { authenticate, requireRole, audit });
 
   app.get('/api/admin/v1/audit-log', {
     preHandler: requireRole('super_admin'),

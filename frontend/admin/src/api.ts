@@ -2,7 +2,11 @@ import type {
   AdministratorRecord,
   AuditEntry,
   SessionResponse,
-  Tenant
+  Tenant,
+  TenantApiKey,
+  TenantResources,
+  TenantSite,
+  TenantUser
 } from './types';
 
 interface RequestOptions extends RequestInit {
@@ -59,6 +63,45 @@ export const adminApi = {
     `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}`,
     { method: 'PATCH', csrfToken, body: JSON.stringify(details) }
   ),
+  tenantResources: (tenant: Tenant) => request<TenantResources>(
+    `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/resources`
+  ),
+  createSite: (csrfToken: string, tenant: Tenant, name: string, allowedDomains: string[]) =>
+    request<{ site: TenantSite }>(
+      `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/sites`,
+      { method: 'POST', csrfToken, body: JSON.stringify({ name, allowedDomains }) }
+    ),
+  updateSite: (csrfToken: string, tenant: Tenant, site: TenantSite) =>
+    request<{ site: TenantSite }>(
+      `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/sites/${encodeURIComponent(site.public_id)}`,
+      { method: 'PATCH', csrfToken, body: JSON.stringify({
+        name: site.name, allowedDomains: site.allowed_domains, status: site.status
+      }) }
+    ),
+  createTenantUser: (csrfToken: string, tenant: Tenant, details: {
+    email: string; displayName: string; role: TenantUser['role']; password: string;
+  }) => request<{ user: TenantUser }>(
+    `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/users`,
+    { method: 'POST', csrfToken, body: JSON.stringify(details) }
+  ),
+  updateTenantUser: (csrfToken: string, tenant: Tenant, user: TenantUser) =>
+    request<{ user: TenantUser }>(
+      `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/users/${encodeURIComponent(user.public_id)}`,
+      { method: 'PATCH', csrfToken, body: JSON.stringify({
+        email: user.email, displayName: user.display_name, role: user.role, status: user.status
+      }) }
+    ),
+  createApiKey: (csrfToken: string, tenant: Tenant, details: {
+    name: string; scopes: string[]; expiresAt: string | null;
+  }) => request<{ apiKey: TenantApiKey; secret: string }>(
+    `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/api-keys`,
+    { method: 'POST', csrfToken, body: JSON.stringify(details) }
+  ),
+  revokeApiKey: (csrfToken: string, tenant: Tenant, apiKey: TenantApiKey) =>
+    request<void>(
+      `/api/admin/v1/tenants/${encodeURIComponent(tenant.public_id)}/api-keys/${encodeURIComponent(apiKey.public_id)}`,
+      { method: 'DELETE', csrfToken }
+    ),
   administrators: () => request<{ administrators: AdministratorRecord[] }>(
     '/api/admin/v1/administrators'
   ),

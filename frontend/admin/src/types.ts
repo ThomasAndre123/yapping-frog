@@ -44,3 +44,40 @@ export interface AuditEntry {
   administrator_name: string | null;
   tenant_name: string | null;
 }
+
+export interface TenantSite {
+  public_id: string;
+  name: string;
+  widget_key: string;
+  allowed_domains: string[];
+  status: 1 | 2;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantUser {
+  public_id: string;
+  email: string;
+  display_name: string;
+  role: 'owner' | 'administrator' | 'agent';
+  status: 1 | 2;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export interface TenantApiKey {
+  public_id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  expires_at: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface TenantResources {
+  sites: TenantSite[];
+  users: TenantUser[];
+  apiKeys: TenantApiKey[];
+}

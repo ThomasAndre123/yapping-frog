@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
 import type { Tenant } from '../types';
+import { TenantResourcesPage } from './TenantResourcesPage';
 
 export interface TenantUpdateDetails {
   slug: string;
@@ -13,19 +14,32 @@ export interface TenantUpdateDetails {
 interface TenantsPageProps {
   tenants: Tenant[];
   readOnly: boolean;
+  csrfToken: string;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
   onRefresh: () => void;
   onUpdate: (tenant: Tenant, details: TenantUpdateDetails) => Promise<void>;
+  onNotice: (message: string, success?: boolean) => void;
 }
 
 export function TenantsPage({
   tenants,
   readOnly,
+  csrfToken,
   onCreate,
   onRefresh,
-  onUpdate
+  onUpdate,
+  onNotice
 }: TenantsPageProps) {
   const [editing, setEditing] = useState<Tenant | null>(null);
+  const [viewing, setViewing] = useState<Tenant | null>(null);
+
+  if (viewing) return <TenantResourcesPage
+    tenant={viewing}
+    csrfToken={csrfToken}
+    readOnly={readOnly}
+    onClose={() => setViewing(null)}
+    onNotice={onNotice}
+  />;
 
   return <section className="panel active" aria-labelledby="tenants-title">
     <div className="toolbar">
@@ -60,7 +74,10 @@ export function TenantsPage({
           <td><span className={`status${tenant.status === 2 ? ' suspended' : ''}`}>
             {tenant.status === 1 ? 'Active' : 'Suspended'}
           </span></td>
-          <td>{!readOnly && <button type="button" onClick={() => setEditing(tenant)}>Edit</button>}</td>
+          <td><div className="row-actions">
+            <button type="button" className="secondary" onClick={() => setViewing(tenant)}>Details</button>
+            {!readOnly && <button type="button" onClick={() => setEditing(tenant)}>Edit</button>}
+          </div></td>
         </tr>)}</tbody>
       </table>
       {tenants.length === 0 && <p className="empty">No tenants have been created.</p>}

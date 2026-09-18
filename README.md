@@ -164,6 +164,36 @@ Tenant subscriptions use two columns added by migration 003:
 Platform operators and super administrators can edit these values from the
 tenant list. Subscription changes are recorded in the administrator audit log.
 
+Migration 004 adds the tenant access resources:
+
+- `tenant_sites` contains publishable widget keys and allowed domains. Allowed
+  domains are exact hostnames or leading wildcards such as `*.example.com`;
+  arbitrary wildcard expressions are rejected so runtime checks remain a
+  lightweight exact or suffix comparison.
+- `tenant_users` stores the tenant role directly (`owner`, `administrator`, or
+  `agent`) as well as login identity and status. There is intentionally no
+  membership table while each user belongs to exactly one tenant.
+- `tenant_api_keys` stores only SHA-256 secret hashes. The full secret is shown
+  once when a key is created and cannot be recovered later.
+
+The platform admin tenant-detail view exposes these resources to all platform
+administrator roles. `support` is read-only; `operator` and `super_admin` can
+create and update sites and users, create API keys, and revoke API keys. Every
+mutation is written to the administrator audit log.
+
+The public widget bootstrap endpoint is:
+
+```text
+GET /api/widget/v1/bootstrap?siteKey=site_pk_...
+Origin: https://customer.example.com
+```
+
+It checks site and tenant status, subscription validity, and the request origin.
+Site configuration is cached in shared Redis for 60 seconds, and concurrent
+cache misses for the same key are coalesced inside each app process. This keeps
+normal widget traffic off PostgreSQL while retaining a short upper bound on
+stale configuration if an external process changes the database directly.
+
 ## Optional administration server
 
 The admin UI is an optional plugin. Keep it disabled on normal public app nodes:
