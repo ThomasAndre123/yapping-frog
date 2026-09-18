@@ -18,13 +18,14 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 COPY src ./src
 COPY public ./public
-COPY admin ./admin
+COPY frontend ./frontend
 COPY migrations ./migrations
 COPY scripts ./scripts
+RUN npm run build && npm prune --omit=dev
 
 USER node
 

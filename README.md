@@ -125,6 +125,26 @@ SameSite session cookie and a CSRF token. The initial interface supports:
 The `support` role is read-only. The `operator` and `super_admin` roles can
 create tenants and change tenant status.
 
+The admin interface is a React/TypeScript application in `frontend/admin`.
+Build it before starting the backend directly:
+
+```bash
+npm run build:admin
+```
+
+For frontend development, run the backend and Vite in separate terminals:
+
+```bash
+npm run dev
+npm run dev:admin
+```
+
+Vite serves the UI at <http://localhost:5173/admin/> and proxies admin API
+requests to the backend on port 3000. `npm run build` builds all three reserved
+frontend outputs. The future tenant and visitor-widget boundaries live in
+`frontend/tenant` and `frontend/widget`; they intentionally contain no product
+UI yet.
+
 ## WebSocket test
 
 The WebSocket endpoint is available at `ws://localhost:3000/ws`. Start the app,

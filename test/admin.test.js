@@ -29,11 +29,14 @@ test('enabled admin plugin serves UI and protects its API', async (t) => {
   const page = await app.inject({ method: 'GET', url: '/admin/' });
   assert.equal(page.statusCode, 200);
   assert.match(page.body, /Yapping Frog Administration/);
-  assert.match(page.body, /Change password/);
-  assert.match(page.body, /Administrator audit log/);
-  assert.match(page.body, /class="admin-menu"/);
-  assert.match(page.body, /data-panel="tenants-section"/);
-  assert.match(page.body, /data-panel="security-section"/);
+  assert.match(page.body, /id="root"/);
+  assert.match(page.body, /type="module"/);
+
+  const assetPath = page.body.match(/src="(\/admin\/assets\/[^"]+\.js)"/)?.[1];
+  assert.ok(assetPath, 'admin page references its compiled JavaScript');
+  const asset = await app.inject({ method: 'GET', url: assetPath });
+  assert.equal(asset.statusCode, 200);
+  assert.match(asset.headers['content-type'], /javascript/);
 
   const api = await app.inject({ method: 'GET', url: '/api/admin/v1/tenants' });
   assert.equal(api.statusCode, 401);

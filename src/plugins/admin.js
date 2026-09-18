@@ -1,14 +1,14 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import staticPlugin from '@fastify/static';
 import fp from 'fastify-plugin';
 
 import { hashPassword, verifyPassword } from '../security/password.js';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-const adminDirectory = path.resolve(currentDirectory, '../../admin');
+const adminDirectory = path.resolve(currentDirectory, '../../dist/admin');
 
 function tokenHash(token) {
   return createHash('sha256').update(token).digest('hex');
@@ -34,11 +34,11 @@ async function adminPlugin(app, options) {
     options.sessionTtlHours ?? process.env.ADMIN_SESSION_TTL_HOURS ?? 8
   );
   const maxAgeSeconds = ttlHours * 60 * 60;
-  const [html, javascript, stylesheet] = await Promise.all([
-    readFile(path.join(adminDirectory, 'index.html'), 'utf8'),
-    readFile(path.join(adminDirectory, 'app.js'), 'utf8'),
-    readFile(path.join(adminDirectory, 'styles.css'), 'utf8')
-  ]);
+  await app.register(staticPlugin, {
+    root: adminDirectory,
+    prefix: '/admin/',
+    decorateReply: false
+  });
 
   async function authenticate(request, reply) {
     const token = cookieValue(request.headers.cookie, 'admin_session');
@@ -109,9 +109,6 @@ async function adminPlugin(app, options) {
   }
 
   app.get('/admin', async (_request, reply) => reply.redirect('/admin/'));
-  app.get('/admin/', async (_request, reply) => reply.type('text/html').send(html));
-  app.get('/admin/app.js', async (_request, reply) => reply.type('application/javascript').send(javascript));
-  app.get('/admin/styles.css', async (_request, reply) => reply.type('text/css').send(stylesheet));
 
   app.post('/api/admin/v1/session', {
     schema: {
