@@ -40,9 +40,11 @@ export interface AuditEntry {
   target_id: string | null;
   ip_address: string | null;
   created_at: string;
+  reason: string | null;
+  metadata: unknown | null;
+  administrator_public_id: string | null;
   administrator_email: string | null;
   administrator_name: string | null;
-  tenant_name: string | null;
 }
 
 export interface TenantSite {

@@ -184,6 +184,12 @@ test('super administrator can create and edit administrator accounts', async (t)
   assert.deepEqual(queries
     .filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'))
     .map(({ values }) => values[1]), ['administrator.create', 'administrator.update']);
+  const auditMetadata = queries
+    .filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'))
+    .map(({ values }) => values[4]);
+  assert.equal(auditMetadata[0].email, 'agent@example.com');
+  assert.equal(auditMetadata[0].password, undefined);
+  assert.equal(auditMetadata[1].passwordChanged, false);
 });
 
 test('super administrator cannot disable their own account', async (t) => {
@@ -291,6 +297,11 @@ test('operator tenant edits and status changes are audited', async (t) => {
     .filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'))
     .map(({ values }) => values[1]);
   assert.deepEqual(auditActions, ['tenant.update', 'tenant.status.update']);
+  const auditMetadata = queries
+    .filter(({ sql }) => sql.includes('INSERT INTO admin_audit_log'))
+    .map(({ values }) => values[4]);
+  assert.equal(auditMetadata[0].subscriptionType, 'pro');
+  assert.deepEqual(auditMetadata[1], { previousStatus: 1, status: 2 });
   const update = queries.find(({ sql }) =>
     sql.includes('UPDATE tenants') && sql.includes('subscription_type'));
   assert.deepEqual(update.values, [

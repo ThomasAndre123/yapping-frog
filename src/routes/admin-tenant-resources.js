@@ -96,7 +96,12 @@ export function registerAdminTenantResourceRoutes(app, {
       RETURNING public_id, name, widget_key, allowed_domains, status, created_at, updated_at
     `, [tenant.id, request.body.name.trim(), widgetKey, domains]);
     const site = result.rows[0];
-    await audit(request, 'tenant.site.create', 'tenant_site', site.public_id, tenant.id);
+    await audit(request, 'tenant.site.create', 'tenant_site', site.public_id, {
+      tenantPublicId: request.params.publicId,
+      name: site.name,
+      allowedDomains: site.allowed_domains,
+      status: site.status
+    });
     return reply.code(201).send({ site });
   });
 
@@ -130,7 +135,7 @@ export function registerAdminTenantResourceRoutes(app, {
       FROM tenants tenant
       WHERE site.public_id = $4 AND tenant.public_id = $5 AND site.tenant_id = tenant.id
       RETURNING site.public_id, site.name, site.widget_key, site.allowed_domains,
-                site.status, site.created_at, site.updated_at, tenant.id AS tenant_id
+                site.status, site.created_at, site.updated_at
     `, [request.body.name.trim(), domains, request.body.status,
       request.params.resourceId, request.params.publicId]);
     if (result.rowCount === 0) return reply.code(404).send({ error: 'Site not found' });
@@ -140,8 +145,12 @@ export function registerAdminTenantResourceRoutes(app, {
     } catch (error) {
       request.log.warn({ err: error }, 'Widget site cache invalidation failed');
     }
-    await audit(request, 'tenant.site.update', 'tenant_site', site.public_id, site.tenant_id);
-    delete site.tenant_id;
+    await audit(request, 'tenant.site.update', 'tenant_site', site.public_id, {
+      tenantPublicId: request.params.publicId,
+      name: site.name,
+      allowedDomains: site.allowed_domains,
+      status: site.status
+    });
     return { site };
   });
 
@@ -171,7 +180,13 @@ export function registerAdminTenantResourceRoutes(app, {
       `, [tenant.id, request.body.email.trim(), request.body.displayName.trim(),
         request.body.role, await hashPassword(request.body.password)]);
       const user = result.rows[0];
-      await audit(request, 'tenant.user.create', 'tenant_user', user.public_id, tenant.id);
+      await audit(request, 'tenant.user.create', 'tenant_user', user.public_id, {
+        tenantPublicId: request.params.publicId,
+        email: user.email,
+        displayName: user.display_name,
+        role: user.role,
+        status: user.status
+      });
       return reply.code(201).send({ user });
     } catch (error) {
       if (error.code === '23505') {
@@ -206,13 +221,18 @@ export function registerAdminTenantResourceRoutes(app, {
           AND tenant_user.tenant_id = tenant.id
         RETURNING tenant_user.public_id, tenant_user.email, tenant_user.display_name,
                   tenant_user.role, tenant_user.status, tenant_user.created_at,
-                  tenant_user.last_login_at, tenant.id AS tenant_id
+                  tenant_user.last_login_at
       `, [request.body.email.trim(), request.body.displayName.trim(), request.body.role,
         request.body.status, request.params.resourceId, request.params.publicId]);
       if (result.rowCount === 0) return reply.code(404).send({ error: 'User not found' });
       const user = result.rows[0];
-      await audit(request, 'tenant.user.update', 'tenant_user', user.public_id, user.tenant_id);
-      delete user.tenant_id;
+      await audit(request, 'tenant.user.update', 'tenant_user', user.public_id, {
+        tenantPublicId: request.params.publicId,
+        email: user.email,
+        displayName: user.display_name,
+        role: user.role,
+        status: user.status
+      });
       return { user };
     } catch (error) {
       if (error.code === '23505') {
@@ -249,7 +269,12 @@ export function registerAdminTenantResourceRoutes(app, {
     `, [tenant.id, request.body.name.trim(), prefix, secretHash(secret),
       [...new Set(request.body.scopes)], request.body.expiresAt]);
     const apiKey = result.rows[0];
-    await audit(request, 'tenant.api_key.create', 'tenant_api_key', apiKey.public_id, tenant.id);
+    await audit(request, 'tenant.api_key.create', 'tenant_api_key', apiKey.public_id, {
+      tenantPublicId: request.params.publicId,
+      name: apiKey.name,
+      scopes: apiKey.scopes,
+      expiresAt: apiKey.expires_at
+    });
     return reply.code(201).send({ apiKey, secret });
   });
 
@@ -262,11 +287,14 @@ export function registerAdminTenantResourceRoutes(app, {
       FROM tenants tenant
       WHERE api_key.public_id = $1 AND tenant.public_id = $2
         AND api_key.tenant_id = tenant.id
-      RETURNING api_key.public_id, tenant.id AS tenant_id
+      RETURNING api_key.public_id
     `, [request.params.resourceId, request.params.publicId]);
     if (result.rowCount === 0) return reply.code(404).send({ error: 'API key not found' });
     await audit(request, 'tenant.api_key.revoke', 'tenant_api_key',
-      result.rows[0].public_id, result.rows[0].tenant_id);
+      result.rows[0].public_id, {
+        tenantPublicId: request.params.publicId,
+        revoked: true
+      });
     return reply.code(204).send();
   });
 }

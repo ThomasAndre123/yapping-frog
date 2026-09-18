@@ -89,14 +89,14 @@ async function adminPlugin(app, options) {
     };
   }
 
-  async function audit(request, action, targetType, targetId, tenantId = null) {
+  async function audit(request, action, targetType, targetId, metadata = null) {
     await database.query(`
       INSERT INTO admin_audit_log (
         administrator_id,
         action,
         target_type,
         target_id,
-        tenant_id,
+        metadata,
         ip_address
       ) VALUES ($1, $2, $3, $4, $5, $6)
     `, [
@@ -104,7 +104,7 @@ async function adminPlugin(app, options) {
       action,
       targetType,
       targetId,
-      tenantId,
+      metadata,
       request.ip
     ]);
   }
@@ -212,7 +212,8 @@ async function adminPlugin(app, options) {
       request,
       'administrator.password.change',
       'platform_administrator',
-      request.administrator.public_id
+      request.administrator.public_id,
+      { passwordChanged: true }
     );
 
     return { message: 'Password changed' };
@@ -266,7 +267,13 @@ async function adminPlugin(app, options) {
           updated_at
       `, [request.body.slug.trim(), request.body.name.trim()]);
       const tenant = result.rows[0];
-      await audit(request, 'tenant.create', 'tenant', tenant.public_id, tenant.id);
+      await audit(request, 'tenant.create', 'tenant', tenant.public_id, {
+        slug: tenant.slug,
+        name: tenant.name,
+        status: tenant.status,
+        subscriptionType: tenant.subscription_type,
+        subscriptionValidUntil: tenant.subscription_valid_until
+      });
       delete tenant.id;
       return reply.code(201).send({ tenant });
     } catch (error) {
@@ -314,7 +321,9 @@ async function adminPlugin(app, options) {
     }
 
     const tenant = result.rows[0];
-    await audit(request, 'tenant.status.update', 'tenant', tenant.public_id, tenant.id);
+    await audit(request, 'tenant.status.update', 'tenant', tenant.public_id, {
+      status: tenant.status
+    });
     delete tenant.id;
     return { tenant };
   });
@@ -398,14 +407,21 @@ async function adminPlugin(app, options) {
       }
 
       const tenant = result.rows[0];
-      await audit(request, 'tenant.update', 'tenant', tenant.public_id, tenant.id);
+      const tenantMetadata = {
+        slug: tenant.slug,
+        name: tenant.name,
+        status: tenant.status,
+        subscriptionType: tenant.subscription_type,
+        subscriptionValidUntil: tenant.subscription_valid_until
+      };
+      await audit(request, 'tenant.update', 'tenant', tenant.public_id, tenantMetadata);
       if (tenant.previous_status !== tenant.status) {
         await audit(
           request,
           'tenant.status.update',
           'tenant',
           tenant.public_id,
-          tenant.id
+          { previousStatus: tenant.previous_status, status: tenant.status }
         );
       }
       delete tenant.id;
@@ -451,7 +467,12 @@ async function adminPlugin(app, options) {
         RETURNING public_id, email, display_name, role, status, created_at, last_login_at
       `, [request.body.email.trim(), request.body.displayName.trim(), request.body.role, passwordHash]);
       const administrator = result.rows[0];
-      await audit(request, 'administrator.create', 'platform_administrator', administrator.public_id);
+      await audit(request, 'administrator.create', 'platform_administrator', administrator.public_id, {
+        email: administrator.email,
+        displayName: administrator.display_name,
+        role: administrator.role,
+        status: administrator.status
+      });
       return reply.code(201).send({ administrator });
     } catch (error) {
       if (error.code === '23505') {
@@ -500,7 +521,13 @@ async function adminPlugin(app, options) {
         request.body.status, passwordHash, request.params.publicId]);
       if (result.rowCount === 0) return reply.code(404).send({ error: 'Administrator not found' });
       const administrator = result.rows[0];
-      await audit(request, 'administrator.update', 'platform_administrator', administrator.public_id);
+      await audit(request, 'administrator.update', 'platform_administrator', administrator.public_id, {
+        email: administrator.email,
+        displayName: administrator.display_name,
+        role: administrator.role,
+        status: administrator.status,
+        passwordChanged: Boolean(request.body.password)
+      });
       return { administrator };
     } catch (error) {
       if (error.code === '23505') {
@@ -531,17 +558,15 @@ async function adminPlugin(app, options) {
         log.target_type,
         log.target_id,
         log.reason,
+        log.metadata,
         log.ip_address,
         log.created_at,
         administrator.public_id AS administrator_public_id,
         administrator.email AS administrator_email,
-        administrator.display_name AS administrator_name,
-        tenant.public_id AS tenant_public_id,
-        tenant.name AS tenant_name
+        administrator.display_name AS administrator_name
       FROM admin_audit_log log
       LEFT JOIN platform_administrators administrator
         ON administrator.id = log.administrator_id
-      LEFT JOIN tenants tenant ON tenant.id = log.tenant_id
       WHERE ($1::BIGINT IS NULL OR log.id < $1::BIGINT)
       ORDER BY log.id DESC
       LIMIT 100
