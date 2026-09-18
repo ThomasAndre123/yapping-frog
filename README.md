@@ -124,10 +124,6 @@ preferable, and `DATABASE_URL`/`REDIS_URL` can point to those services instead.
 
 ## Database setup and migrations
 
-Do not expose a web-based `/install` route. Even if the route is hidden, it can
-be discovered and becomes a privileged production attack surface. Database
-changes are installed through versioned SQL migrations instead.
-
 With PostgreSQL running and `.env` configured, run:
 
 ```bash
