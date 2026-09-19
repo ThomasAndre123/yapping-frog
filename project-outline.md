@@ -50,7 +50,7 @@ Customer Website
       │
       ├── tenants
       ├── visitors
-      ├── agents
+      ├── tenant users
       ├── conversations
       ├── messages
       ├── read receipts
@@ -159,7 +159,7 @@ It stores:
 - tenants
 - websites
 - members / visitors
-- operators / agents
+- tenant users (owners, administrators, and agents)
 - conversations
 - conversation participants
 - messages
@@ -286,29 +286,48 @@ Anonymous visitors can simply use the generated public visitor ID.
 
 ---
 
-# 6. Agents
+# 6. Tenant Users and Agents
+
+An agent is a tenant user with the `agent` role, not a separate identity or
+table. Tenant owners, tenant administrators, and agents share the same
+authentication and lifecycle model; authorization is determined by `role`.
 
 ```sql
-CREATE TABLE agents (
+CREATE TABLE tenant_users (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id),
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
     public_id UUID NOT NULL UNIQUE,
 
-    name TEXT NOT NULL,
+    email TEXT NOT NULL,
 
-    email TEXT,
+    display_name TEXT NOT NULL,
+
+    role TEXT NOT NULL DEFAULT 'agent' CHECK (role IN (
+        'owner',
+        'administrator',
+        'agent'
+    )),
 
     status SMALLINT NOT NULL DEFAULT 1,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    password_hash TEXT,
+
+    identity_provider_subject TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    last_login_at TIMESTAMPTZ
 );
 
-CREATE INDEX agents_tenant_idx
-ON agents (tenant_id);
+CREATE UNIQUE INDEX tenant_users_tenant_email_unique
+ON tenant_users (tenant_id, LOWER(email));
 ```
 
+Only users whose role permits conversation work should be assignable as agents.
 Agent online/offline state should normally live in Redis rather than PostgreSQL.
 
 ---
@@ -325,7 +344,7 @@ CREATE TABLE conversations (
 
     visitor_id BIGINT NOT NULL REFERENCES visitors(id),
 
-    assigned_agent_id BIGINT REFERENCES agents(id),
+    assigned_agent_id BIGINT REFERENCES tenant_users(id),
 
     status SMALLINT NOT NULL DEFAULT 1,
 
@@ -989,7 +1008,7 @@ Bad:
 ```text
 heartbeat
     ↓
-UPDATE agents SET online = true
+UPDATE tenant_users SET online = true
 ```
 
 at large scale.
@@ -2215,15 +2234,18 @@ user -> one socket
 
 An internal admin page is useful for support and routine operations, especially once more than one person operates the service. It should be a small control plane over explicit application APIs, not a database editor, shell, or general-purpose server console.
 
-Platform administrators and tenant agents are different identities:
+Platform administrators and tenant users are different identities:
 
 ```text
-agent                 administers conversations for one tenant
-tenant owner          configures their own tenant and team
+tenant user (agent)   handles conversations for one tenant
+tenant user (owner)   configures their own tenant and team
 platform administrator operates the SaaS across tenants
 ```
 
-Do not grant platform access by adding an `is_admin` flag to `agents`. Agents are tenant-scoped, while a platform administrator may need controlled cross-tenant access. Keeping the concepts separate makes authorization checks and audits harder to bypass accidentally.
+Do not grant platform access by adding an `is_platform_admin` flag to
+`tenant_users`. Tenant users are tenant-scoped, while a platform administrator
+may need controlled cross-tenant access. Keeping the concepts separate makes
+authorization checks and audits harder to bypass accidentally.
 
 ## Administrator table
 
@@ -2286,8 +2308,6 @@ CREATE TABLE admin_audit_log (
 
     target_id TEXT,
 
-    tenant_id BIGINT REFERENCES tenants(id),
-
     reason TEXT,
 
     metadata JSONB,
@@ -2299,12 +2319,13 @@ CREATE TABLE admin_audit_log (
 
 CREATE INDEX admin_audit_log_created_idx
 ON admin_audit_log (created_at DESC);
-
-CREATE INDEX admin_audit_log_tenant_idx
-ON admin_audit_log (tenant_id, created_at DESC);
 ```
 
-Treat this log as append-only. Record the administrator, action, affected tenant or resource, timestamp, request ID, and a support reason. Avoid copying message bodies, tokens, passwords, or other secrets into audit metadata.
+Treat this log as append-only. Record the administrator, action, target resource,
+timestamp, request ID, and a support reason. Put safe, action-specific context in
+`metadata`; do not add a tenant foreign key because audit events are not always
+tenant-related. Avoid copying message bodies, tokens, passwords, password hashes,
+API-key secrets, or other credentials into audit metadata.
 
 ## Possible admin-page jobs
 
@@ -2322,8 +2343,8 @@ Tenant support
     review recent errors and delivery failures for one tenant
 
 User support
-    inspect agents and visitors with sensitive fields masked by default
-    disable an agent or revoke sessions
+    inspect tenant users and visitors with sensitive fields masked by default
+    disable a tenant user or revoke sessions
     resend an invitation or initiate an account recovery flow
     use time-limited impersonation only if it is audited and clearly displayed
 
@@ -2402,7 +2423,7 @@ PostgreSQL
     conversations
     tenants
     visitors
-    agents
+    tenant users
     platform administrators
     admin audit log
     read positions
