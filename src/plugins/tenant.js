@@ -50,11 +50,11 @@ async function tenantPlugin(app, options) {
     }
   };
 
-  async function audit(request, action, targetType, targetId, metadata) {
+  async function audit(request, action, targetType, targetId, metadata, actor = request.tenantUser) {
     await database.query(`INSERT INTO tenant_audit_log
       (tenant_id,tenant_user_id,action,target_type,target_id,metadata,ip_address)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)`, [request.tenantUser.tenant_id,
-      request.tenantUser.id, action, targetType, targetId, metadata, request.ip]);
+      VALUES ($1,$2,$3,$4,$5,$6,$7)`, [actor.tenant_id,
+      actor.id, action, targetType, targetId, metadata, request.ip]);
   }
 
   async function publishRoomEvent(request, room, type, data) {
@@ -81,7 +81,8 @@ async function tenantPlugin(app, options) {
       password: { type: 'string', minLength: 1, maxLength: 1024 }
     } } } }, async (request, reply) => {
     const result = await database.query(`
-      SELECT u.id, u.password_hash FROM tenant_users u JOIN tenants t ON t.id = u.tenant_id
+      SELECT u.id,u.public_id,u.tenant_id,u.display_name,u.password_hash
+      FROM tenant_users u JOIN tenants t ON t.id = u.tenant_id
       WHERE LOWER(t.slug) = LOWER($1) AND LOWER(u.email) = LOWER($2)
         AND u.status = 1 AND t.status = 1
     `, [request.body.tenant.trim(), request.body.email.trim()]);
@@ -95,6 +96,10 @@ async function tenantPlugin(app, options) {
       VALUES ($1, $2, $3, NOW() + ($4 * INTERVAL '1 hour'))`,
     [tokenHash(token), user.id, csrf, ttlHours]);
     await database.query('UPDATE tenant_users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+    await audit(request, 'user.session.login', 'tenant_user', user.public_id, {
+      sessionStarted: true,
+      userAgent: request.headers['user-agent']?.slice(0, 512) ?? null
+    }, user);
     reply.header('set-cookie', `tenant_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ttlHours * 3600}`);
     return { csrfToken: csrf };
   });
@@ -108,10 +113,53 @@ async function tenantPlugin(app, options) {
   }));
 
   app.delete('/api/tenant/v1/session', { preHandler: authenticate }, async (request, reply) => {
+    await audit(request, 'user.session.logout', 'tenant_user', request.tenantUser.public_id, {
+      sessionEnded: true
+    });
     await database.query('DELETE FROM tenant_sessions WHERE token_hash = $1',
       [tokenHash(cookieValue(request.headers.cookie, 'tenant_session'))]);
     reply.header('set-cookie', 'tenant_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
     return reply.code(204).send();
+  });
+
+  app.patch('/api/tenant/v1/profile', {
+    preHandler: authenticate,
+    schema: { body: { type: 'object', additionalProperties: false,
+      required: ['displayName'], properties: {
+        displayName: { type: 'string', minLength: 1, maxLength: 200 },
+        currentPassword: { type: 'string', minLength: 1, maxLength: 1024 },
+        newPassword: { type: 'string', minLength: 8, maxLength: 1024 }
+      } } }
+  }, async (request, reply) => {
+    const changingPassword = Boolean(request.body.newPassword);
+    let passwordHash = null;
+    if (changingPassword) {
+      if (!request.body.currentPassword) {
+        return reply.code(400).send({ error: 'Current password is required' });
+      }
+      const current = await database.query(
+        'SELECT password_hash FROM tenant_users WHERE id=$1', [request.tenantUser.id]
+      );
+      if (!current.rows[0]?.password_hash ||
+          !await verifyPassword(request.body.currentPassword, current.rows[0].password_hash)) {
+        return reply.code(400).send({ error: 'Current password is incorrect' });
+      }
+      if (await verifyPassword(request.body.newPassword, current.rows[0].password_hash)) {
+        return reply.code(400).send({ error: 'New password must be different' });
+      }
+      passwordHash = await hashPassword(request.body.newPassword);
+    }
+    const result = await database.query(`UPDATE tenant_users
+      SET display_name=$1,password_hash=COALESCE($2::TEXT,password_hash),updated_at=NOW()
+      WHERE id=$3 RETURNING public_id,email,display_name,role`,
+    [request.body.displayName.trim(), passwordHash, request.tenantUser.id]);
+    const user = result.rows[0];
+    await audit(request, 'user.profile.update', 'tenant_user', user.public_id, {
+      displayName: user.display_name,
+      passwordChanged: changingPassword
+    });
+    return { user: { publicId: user.public_id, email: user.email,
+      displayName: user.display_name, role: user.role } };
   });
 
   app.get('/api/tenant/v1/sites', { preHandler: authenticate }, async (request) => ({ sites: (await database.query(`

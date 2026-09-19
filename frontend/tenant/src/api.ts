@@ -15,6 +15,7 @@ export const tenantApi = {
   session: () => request<Session>('/api/tenant/v1/session'),
   login: (tenant: string, email: string, password: string) => request('/api/tenant/v1/session', { method: 'POST', body: JSON.stringify({ tenant, email, password }) }),
   logout: (csrf: string) => request<void>('/api/tenant/v1/session', { method: 'DELETE', csrf }),
+  updateProfile: (csrf: string, details: { displayName: string; currentPassword?: string; newPassword?: string }) => request<{ user: Session['user'] }>('/api/tenant/v1/profile', { method: 'PATCH', csrf, body: JSON.stringify(details) }),
   sites: () => request<{ sites: Site[] }>('/api/tenant/v1/sites'),
   createSite: (csrf: string, name: string, allowedDomains: string[]) => request('/api/tenant/v1/sites', { method: 'POST', csrf, body: JSON.stringify({ name, allowedDomains }) }),
   updateSite: (csrf: string, site: Site) => request(`/api/tenant/v1/sites/${site.public_id}`, { method: 'PATCH', csrf, body: JSON.stringify({ name: site.name, allowedDomains: site.allowed_domains, status: site.status }) }),

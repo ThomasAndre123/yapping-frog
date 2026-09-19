@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildApp } from '../src/app.js';
+import { hashPassword } from '../src/security/password.js';
 
 const dependencies = {
   postgres: { async check() {}, async query() { return { rowCount: 0, rows: [] }; } },
@@ -61,4 +62,56 @@ test('tenant owner can rename a room and the change is audited safely', async (t
   assert.equal(auditResponse.statusCode, 200);
   const auditRead = queries.find(({ sql }) => sql.includes('FROM tenant_audit_log'));
   assert.match(auditRead.sql, /tenant_users actor/);
+});
+
+test('tenant login, profile update, and logout are audited without passwords', async (t) => {
+  const storedHash = await hashPassword('old password');
+  const queries = [];
+  const publicId = '8c608917-e797-47fd-af90-a752a2423d37';
+  const app = buildApp({ logger: false, dependencies: {
+    postgres: { async check() {}, async query(sql, values) {
+      queries.push({ sql, values });
+      if (sql.includes('FROM tenant_users u JOIN tenants')) return { rowCount: 1, rows: [{
+        id: '4', public_id: publicId, tenant_id: '7', display_name: 'Old name', password_hash: storedHash
+      }] };
+      if (sql.includes('FROM tenant_sessions s')) return { rowCount: 1, rows: [{
+        id: '4', public_id: publicId, tenant_id: '7', email: 'user@example.com',
+        display_name: 'Old name', role: 'agent', csrf_token: 'csrf',
+        tenant_public_id: '75d14795-8046-40c7-9810-20755f8f1430', tenant_slug: 'acme', tenant_name: 'Acme'
+      }] };
+      if (sql.includes('SELECT password_hash FROM tenant_users')) {
+        return { rowCount: 1, rows: [{ password_hash: storedHash }] };
+      }
+      if (sql.includes('UPDATE tenant_users') && sql.includes('display_name=$1')) {
+        return { rowCount: 1, rows: [{ public_id: publicId, email: 'user@example.com',
+          display_name: 'New name', role: 'agent' }] };
+      }
+      return { rowCount: 1, rows: [] };
+    } }, redis: { async check() {} }
+  } });
+  t.after(() => app.close());
+
+  const login = await app.inject({ method: 'POST', url: '/api/tenant/v1/session',
+    headers: { 'user-agent': 'Tenant Client/1.0' },
+    payload: { tenant: 'acme', email: 'user@example.com', password: 'old password' } });
+  assert.equal(login.statusCode, 200);
+  const cookie = login.headers['set-cookie'].split(';')[0];
+
+  const profile = await app.inject({ method: 'PATCH', url: '/api/tenant/v1/profile',
+    headers: { cookie, 'x-csrf-token': 'csrf' },
+    payload: { displayName: 'New name', currentPassword: 'old password', newPassword: 'new password' } });
+  assert.equal(profile.statusCode, 200);
+
+  const logout = await app.inject({ method: 'DELETE', url: '/api/tenant/v1/session',
+    headers: { cookie, 'x-csrf-token': 'csrf' } });
+  assert.equal(logout.statusCode, 204);
+
+  const audits = queries.filter(({ sql }) => sql.includes('INSERT INTO tenant_audit_log'));
+  assert.deepEqual(audits.map(({ values }) => values[2]), [
+    'user.session.login', 'user.profile.update', 'user.session.logout'
+  ]);
+  assert.equal(audits[0].values[5].userAgent, 'Tenant Client/1.0');
+  assert.equal(audits[1].values[5].passwordChanged, true);
+  assert.equal(JSON.stringify(audits).includes('old password'), false);
+  assert.equal(JSON.stringify(audits).includes('new password'), false);
 });

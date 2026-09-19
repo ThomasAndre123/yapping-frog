@@ -8,4 +8,7 @@
 .member-editor { margin: 0 0 18px; }
 .editor-actions { display: flex; gap: 10px; }
 button.danger { background: #b91c1c; }
+.profile-card { max-width: 620px; }
+.profile-card form { display: grid; gap: 16px; }
+.profile-card hr { width: 100%; border: 0; border-top: 1px solid #e2e8f0; }
 @media (max-width: 800px) { .resource-line { grid-template-columns: 1fr; } }
