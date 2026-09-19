@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import adminPlugin from './plugins/admin.js';
 import dependenciesPlugin from './plugins/dependencies.js';
 import staticFilesPlugin from './plugins/static-files.js';
+import tenantPlugin from './plugins/tenant.js';
 import websocketPlugin from './plugins/websocket.js';
 import widgetBootstrapPlugin from './plugins/widget-bootstrap.js';
 import healthRoutes from './routes/health.js';
@@ -24,6 +25,7 @@ export function buildApp(options = {}) {
     heartbeatIntervalMs: options.websocketHeartbeatIntervalMs
   });
   app.register(widgetBootstrapPlugin);
+  app.register(tenantPlugin, { sessionTtlHours: options.tenantSessionTtlHours });
   app.register(staticFilesPlugin);
 
   const adminEnabled = options.adminEnabled ?? process.env.ADMIN_ENABLED === 'true';

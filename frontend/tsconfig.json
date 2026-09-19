@@ -16,5 +16,5 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["admin/src", "shared"]
+  "include": ["admin/src", "tenant/src", "shared"]
 }

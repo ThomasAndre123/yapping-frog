@@ -15,8 +15,9 @@
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
     "dev": "npm run build:admin && node --env-file-if-exists=.env --watch src/server.js",
     "dev:admin": "vite --config frontend/admin/vite.config.ts",
+    "dev:tenant": "vite --config frontend/tenant/vite.config.ts",
     "start": "node --env-file-if-exists=.env src/server.js",
-    "test": "npm run build:admin && node --test",
+    "test": "npm run build:admin && npm run build:tenant && node --test",
     "typecheck": "tsc --noEmit -p frontend/tsconfig.json"
   },
   "dependencies": {

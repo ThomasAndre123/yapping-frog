@@ -1,8 +1,12 @@
-# Tenant UI
+# Tenant Workspace
 
-Future React/TypeScript application for tenant owners and chat operators.
+React/TypeScript workspace for tenant owners, administrators, and agents.
+It is served under `/app/` and provides tenant-scoped site and user management,
+tenant-wide chat rooms, and member-restricted private rooms.
 
-Its production build will be served under `/app/` and should use the
-tenant-scoped HTTP API and authenticated WebSocket protocol. Keep its source,
-authentication, and build entry separate from both the platform admin and the
-visitor widget.
+Run the API server and tenant Vite server separately during development:
+
+```bash
+npm start
+npm run dev:tenant
+```
