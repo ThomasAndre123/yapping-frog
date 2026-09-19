@@ -24,6 +24,7 @@ export const tenantApi = {
   rooms: () => request<{ rooms: Room[] }>('/api/tenant/v1/rooms'),
   createRoom: (csrf: string, details: object) => request('/api/tenant/v1/rooms', { method: 'POST', csrf, body: JSON.stringify(details) }),
   updateRoom: (csrf: string, room: Room) => request(`/api/tenant/v1/rooms/${room.public_id}`, { method: 'PATCH', csrf, body: JSON.stringify({ title: room.title, pinned: room.pinned }) }),
+  deleteRoom: (csrf: string, room: Room) => request<void>(`/api/tenant/v1/rooms/${room.public_id}`, { method: 'DELETE', csrf }),
   messages: (roomId: string) => request<{ messages: Message[] }>(`/api/tenant/v1/rooms/${roomId}/messages`),
   sendMessage: (csrf: string, roomId: string, content: string) => request(`/api/tenant/v1/rooms/${roomId}/messages`, { method: 'POST', csrf, body: JSON.stringify({ content }) }),
   markRoomRead: (csrf: string, roomId: string) => request<void>(`/api/tenant/v1/rooms/${roomId}/read`, { method: 'POST', csrf }),

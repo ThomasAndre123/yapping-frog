@@ -6,4 +6,6 @@
 .badge { display: inline-block; min-width: 22px; margin-left: 8px; border-radius: 999px; padding: 2px 7px; background: #dc2626; color: white; font-size: 11px; text-align: center; }
 .nav-badge { float: right; background: #ef4444; }
 .member-editor { margin: 0 0 18px; }
+.editor-actions { display: flex; gap: 10px; }
+button.danger { background: #b91c1c; }
 @media (max-width: 800px) { .resource-line { grid-template-columns: 1fr; } }

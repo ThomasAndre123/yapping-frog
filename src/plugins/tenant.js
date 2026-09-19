@@ -183,7 +183,7 @@ async function tenantPlugin(app, options) {
   const accessibleRoom = `room.tenant_id=$1 AND (room.visibility='tenant' OR room.created_by=$2 OR EXISTS
     (SELECT 1 FROM tenant_chat_room_members member WHERE member.room_id=room.id AND member.tenant_user_id=$2))`;
   app.get('/api/tenant/v1/rooms', { preHandler: authenticate }, async (request) => ({ rooms: (await database.query(`
-    SELECT room.public_id,room.title,room.visibility,room.pinned,room.created_at,room.updated_at,
+    SELECT room.public_id,room.title,room.visibility,room.room_kind,room.pinned,room.created_at,room.updated_at,
       creator.display_name AS creator_name,
       (SELECT content FROM tenant_chat_messages WHERE room_id=room.id ORDER BY id DESC LIMIT 1) AS last_message,
       (SELECT COUNT(*)::INTEGER FROM tenant_chat_messages message
@@ -197,7 +197,7 @@ async function tenantPlugin(app, options) {
   app.post('/api/tenant/v1/rooms', { preHandler: authenticate }, async (request, reply) => {
     const visibility = request.body.visibility === 'private' ? 'private' : 'tenant';
     const roomResult = await database.query(`INSERT INTO tenant_chat_rooms (tenant_id,title,visibility,pinned,created_by)
-      VALUES ($1,$2,$3,$4,$5) RETURNING id,public_id,title,visibility,pinned,created_at,updated_at`,
+      VALUES ($1,$2,$3,$4,$5) RETURNING id,public_id,title,visibility,room_kind,pinned,created_at,updated_at`,
     [request.tenantUser.tenant_id, request.body.title.trim(), visibility, Boolean(request.body.pinned), request.tenantUser.id]);
     const room = roomResult.rows[0];
     if (visibility === 'private') {
@@ -217,7 +217,7 @@ async function tenantPlugin(app, options) {
   });
   app.patch('/api/tenant/v1/rooms/:id', { preHandler: manage }, async (request, reply) => {
     const result = await database.query(`UPDATE tenant_chat_rooms room SET title=$1,pinned=$2,updated_at=NOW()
-      WHERE room.public_id=$3 AND room.tenant_id=$4 RETURNING id,public_id,title,visibility,pinned,created_at,updated_at`,
+      WHERE room.public_id=$3 AND room.tenant_id=$4 RETURNING id,public_id,title,visibility,room_kind,pinned,created_at,updated_at`,
     [request.body.title.trim(), Boolean(request.body.pinned), request.params.id, request.tenantUser.tenant_id]);
     if (!result.rowCount) return reply.code(404).send({ error: 'Room not found' });
     await audit(request, 'room.update', 'tenant_chat_room', result.rows[0].public_id, {
@@ -228,6 +228,33 @@ async function tenantPlugin(app, options) {
     });
     delete result.rows[0].id;
     return { room: result.rows[0] };
+  });
+  app.delete('/api/tenant/v1/rooms/:id', { preHandler: manage }, async (request, reply) => {
+    const found = await database.query(`SELECT id,public_id,title,visibility,room_kind
+      FROM tenant_chat_rooms WHERE public_id=$1 AND tenant_id=$2`,
+    [request.params.id, request.tenantUser.tenant_id]);
+    if (!found.rowCount) return reply.code(404).send({ error: 'Room not found' });
+    const room = found.rows[0];
+    if (room.room_kind !== 'internal') {
+      return reply.code(409).send({ error: 'Rooms associated with visitors cannot be deleted' });
+    }
+    let memberIds = [];
+    if (room.visibility === 'private') {
+      memberIds = (await database.query(
+        'SELECT tenant_user_id FROM tenant_chat_room_members WHERE room_id=$1', [room.id]
+      )).rows.map((member) => member.tenant_user_id);
+    }
+    await database.query('DELETE FROM tenant_chat_rooms WHERE id=$1', [room.id]);
+    await audit(request, 'room.delete', 'tenant_chat_room', room.public_id, {
+      title: room.title, visibility: room.visibility, roomKind: room.room_kind
+    });
+    app.tenantRealtime.publishRoom({
+      tenantId: request.tenantUser.tenant_id,
+      visibility: room.visibility,
+      memberIds,
+      event: { type: 'tenant.room.deleted', data: { roomId: room.public_id } }
+    });
+    return reply.code(204).send();
   });
 
   app.get('/api/tenant/v1/audit-log', { preHandler: manage }, async (request) => ({
