@@ -73,6 +73,7 @@ async function tenantPlugin(app, options) {
       tenantId: request.tenantUser.tenant_id,
       visibility,
       memberIds,
+      visitorId: room.visitor_id,
       event: { type, data }
     });
   }
@@ -270,7 +271,7 @@ async function tenantPlugin(app, options) {
   });
   app.patch('/api/tenant/v1/rooms/:id', { preHandler: manage }, async (request, reply) => {
     const result = await database.query(`UPDATE tenant_chat_rooms room SET title=$1,pinned=$2,updated_at=NOW()
-      WHERE room.public_id=$3 AND room.tenant_id=$4 RETURNING id,public_id,title,visibility,room_kind,pinned,created_at,updated_at`,
+      WHERE room.public_id=$3 AND room.tenant_id=$4 RETURNING id,public_id,title,visibility,room_kind,pinned,visitor_id,created_at,updated_at`,
     [request.body.title.trim(), Boolean(request.body.pinned), request.params.id, request.tenantUser.tenant_id]);
     if (!result.rowCount) return reply.code(404).send({ error: 'Room not found' });
     await audit(request, 'room.update', 'tenant_chat_room', result.rows[0].public_id, {
@@ -317,7 +318,7 @@ async function tenantPlugin(app, options) {
       WHERE log.tenant_id=$1 ORDER BY log.id DESC LIMIT 200`, [request.tenantUser.tenant_id])).rows
   }));
   app.get('/api/tenant/v1/rooms/:id/messages', { preHandler: authenticate }, async (request, reply) => {
-    const room = await database.query(`SELECT room.id,room.visibility,room.room_kind FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
+    const room = await database.query(`SELECT room.id,room.visibility,room.room_kind,room.visitor_id FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
       [request.tenantUser.tenant_id, request.tenantUser.id, request.params.id]);
     if (!room.rowCount) return reply.code(404).send({ error: 'Room not found' });
     return { messages: (await database.query(`SELECT message.public_id,message.content,message.created_at,
@@ -329,7 +330,7 @@ async function tenantPlugin(app, options) {
       WHERE message.room_id=$1 ORDER BY message.id`, [room.rows[0].id])).rows };
   });
   app.post('/api/tenant/v1/rooms/:id/messages', { preHandler: authenticate }, async (request, reply) => {
-    const room = await database.query(`SELECT room.id,room.visibility,room.room_kind FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
+    const room = await database.query(`SELECT room.id,room.visibility,room.room_kind,room.visitor_id FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
       [request.tenantUser.tenant_id, request.tenantUser.id, request.params.id]);
     if (!room.rowCount) return reply.code(404).send({ error: 'Room not found' });
     const result = await database.query(`INSERT INTO tenant_chat_messages (room_id,sender_id,content) VALUES ($1,$2,$3)

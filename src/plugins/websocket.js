@@ -3,13 +3,27 @@ import { createHash, randomUUID } from 'node:crypto';
 import fp from 'fastify-plugin';
 import { WebSocket, WebSocketServer } from 'ws';
 
+import { isHostnameAllowed } from '../security/allowed-domain.js';
 import { createProtocolResponse } from '../websocket/protocol.js';
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
+const tokenHash = (token) => createHash('sha256').update(token).digest('hex');
+
+function hostname(value) {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
+  }
+}
 
 export function canReceiveTenantRoomEvent(identity, tenantId, visibility, memberIds = []) {
   if (!identity || String(identity.tenant_id) !== String(tenantId)) return false;
   return visibility !== 'private' || memberIds.map(String).includes(String(identity.id));
+}
+
+export function canReceiveWidgetRoomEvent(identity, visitorId) {
+  return Boolean(visitorId && identity && String(identity.id) === String(visitorId));
 }
 
 async function websocketPlugin(app, options) {
@@ -31,8 +45,35 @@ async function websocketPlugin(app, options) {
       JOIN tenants tenant ON tenant.id=user_account.tenant_id
       WHERE session.token_hash=$1 AND session.expires_at>NOW()
         AND user_account.status=1 AND tenant.status=1
-    `, [createHash('sha256').update(token).digest('hex')]);
+    `, [tokenHash(token)]);
     return result.rows[0] ?? null;
+  }
+
+  async function widgetIdentity(request, url) {
+    const token = url.searchParams.get('visitorToken');
+    if (!token) return null;
+    const result = await database.query(`
+      SELECT visitor.id,visitor.public_id,site.tenant_id,site.allowed_domains,site.widget_key
+      FROM widget_visitor_sessions session
+      JOIN widget_visitors visitor ON visitor.id=session.visitor_id
+      JOIN tenant_sites site ON site.id=visitor.site_id
+      JOIN tenants tenant ON tenant.id=site.tenant_id
+      WHERE session.token_hash=$1 AND session.expires_at>NOW()
+        AND site.status=1 AND tenant.status=1
+    `, [tokenHash(token)]);
+    const visitor = result.rows[0];
+    if (!visitor) throw new Error('Invalid widget visitor session');
+
+    const parentOrigin = url.searchParams.get('origin');
+    const parentHostname = hostname(parentOrigin);
+    const directPreview = !parentOrigin &&
+      visitor.widget_key === process.env.DEFAULT_WIDGET_SITE_KEY &&
+      hostname(request.headers.origin) === hostname(`http://${request.headers.host}`);
+    if (!directPreview &&
+        (!parentHostname || !isHostnameAllowed(parentHostname, visitor.allowed_domains))) {
+      throw new Error('Widget WebSocket origin is not allowed');
+    }
+    return visitor;
   }
 
   async function handleUpgrade(request, socket, head) {
@@ -45,6 +86,7 @@ async function websocketPlugin(app, options) {
 
     try {
       request.tenantUser = await tenantIdentity(request);
+      request.widgetVisitor = await widgetIdentity(request, url);
       wss.handleUpgrade(request, socket, head, (websocket) => {
         wss.emit('connection', websocket, request);
       });
@@ -60,6 +102,7 @@ async function websocketPlugin(app, options) {
     const connectionId = randomUUID();
     socket.isAlive = true;
     socket.tenantUser = request.tenantUser;
+    socket.widgetVisitor = request.widgetVisitor;
 
     socket.on('pong', () => {
       socket.isAlive = true;
@@ -86,11 +129,14 @@ async function websocketPlugin(app, options) {
   }
 
   app.decorate('tenantRealtime', {
-    publishRoom({ tenantId, visibility, memberIds = [], event }) {
+    publishRoom({ tenantId, visibility, memberIds = [], visitorId, event }) {
       for (const socket of wss.clients) {
         const identity = socket.tenantUser;
-        if (!canReceiveTenantRoomEvent(identity, tenantId, visibility, memberIds)) continue;
-        send(socket, event);
+        const widgetVisitor = socket.widgetVisitor;
+        if (canReceiveTenantRoomEvent(identity, tenantId, visibility, memberIds) ||
+            canReceiveWidgetRoomEvent(widgetVisitor, visitorId)) {
+          send(socket, event);
+        }
       }
     },
     publishUser({ tenantId, userId, event }) {

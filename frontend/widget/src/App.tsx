@@ -4,7 +4,8 @@ import { widgetApi, type WidgetMessage } from './api';
 const params = new URLSearchParams(window.location.search);
 const requestedSiteKey = params.get('siteKey') ?? undefined;
 const savedVisitorToken = params.get('visitorToken') ?? undefined;
-const parentOrigin = params.get('parentOrigin') ?? '*';
+const configuredParentOrigin = params.get('parentOrigin');
+const parentOrigin = configuredParentOrigin ?? '*';
 
 export function App() {
     const [open, setOpen] = useState(false);
@@ -55,16 +56,58 @@ export function App() {
     }, [loadMessages]);
 
     useEffect(() => {
-        if (!open || !visitorToken) {
+        if (!visitorToken) {
             return;
         }
 
-        const timer = window.setInterval(() => {
-            loadMessages(visitorToken).catch(() => {});
-        }, 3000);
+        let socket: WebSocket | undefined;
+        let reconnectTimer: number | undefined;
+        let active = true;
 
-        return () => window.clearInterval(timer);
-    }, [open, visitorToken, loadMessages]);
+        const connect = () => {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = new URL(`${protocol}//${window.location.host}/ws`);
+
+            url.searchParams.set('visitorToken', visitorToken);
+
+            if (configuredParentOrigin) {
+                url.searchParams.set('origin', configuredParentOrigin);
+            }
+
+            socket = new WebSocket(url);
+
+            socket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+
+                    if (
+                        message.type === 'tenant.message.created' ||
+                        message.type === 'tenant.room.updated'
+                    ) {
+                        loadMessages(visitorToken).catch(() => {});
+                    }
+                } catch {}
+            };
+
+            socket.onclose = () => {
+                if (active) {
+                    reconnectTimer = window.setTimeout(connect, 1500);
+                }
+            };
+        };
+
+        connect();
+
+        return () => {
+            active = false;
+
+            if (reconnectTimer) {
+                window.clearTimeout(reconnectTimer);
+            }
+
+            socket?.close();
+        };
+    }, [visitorToken, loadMessages]);
 
     useEffect(() => {
         const list = messageList.current;
