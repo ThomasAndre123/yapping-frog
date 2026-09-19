@@ -22,6 +22,14 @@ test('tenant workspace is served and tenant APIs require authentication', async 
   assert.ok(assetPath);
   assert.equal((await app.inject({ method: 'GET', url: assetPath })).statusCode, 200);
 
+  const tenantAlias = await app.inject({ method: 'GET', url: '/tenant/' });
+  assert.equal(tenantAlias.statusCode, 200);
+  assert.match(tenantAlias.body, /Yapping Frog Workspace/);
+
+  const tenantRedirect = await app.inject({ method: 'GET', url: '/tenant' });
+  assert.equal(tenantRedirect.statusCode, 302);
+  assert.equal(tenantRedirect.headers.location, '/tenant/');
+
   const rooms = await app.inject({ method: 'GET', url: '/api/tenant/v1/rooms' });
   assert.equal(rooms.statusCode, 401);
 });

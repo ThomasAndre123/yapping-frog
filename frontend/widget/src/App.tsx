@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { widgetApi, type WidgetMessage } from './api';
 
 const params = new URLSearchParams(window.location.search);
-const siteKey = params.get('siteKey') ?? '';
+const requestedSiteKey = params.get('siteKey') ?? undefined;
 const savedVisitorToken = params.get('visitorToken') ?? undefined;
 const parentOrigin = params.get('parentOrigin') ?? '*';
 
@@ -21,20 +21,21 @@ export function App() {
     }, []);
 
     useEffect(() => {
-        if (!siteKey) {
-            setError('Widget site key is missing.');
-            return;
-        }
+        const start = async () => {
+            const siteKey = requestedSiteKey ?? (await widgetApi.config()).siteKey;
+            const result = await widgetApi.session(siteKey, savedVisitorToken);
 
-        widgetApi
-            .session(siteKey, savedVisitorToken)
+            return { ...result, siteKey };
+        };
+
+        start()
             .then(async (result) => {
                 setVisitorToken(result.visitorToken);
                 setSiteName(result.site.name);
                 window.parent.postMessage(
                     {
                         type: 'yapping-frog.visitor-token',
-                        siteKey,
+                        siteKey: result.siteKey,
                         visitorToken: result.visitorToken,
                     },
                     parentOrigin,

@@ -25,6 +25,8 @@ async function request<T>(path: string, options: RequestInit = {}) {
 }
 
 export const widgetApi = {
+    config: () => request<{ siteKey: string }>('/api/widget/v1/config'),
+
     session: (siteKey: string, visitorToken?: string) =>
         request<{ visitorToken: string; site: { publicId: string; name: string } }>(
             '/api/widget/v1/session',

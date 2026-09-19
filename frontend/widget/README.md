@@ -10,6 +10,16 @@ Embed the widget on an allowed tenant site:
 ></script>
 ```
 
+If the server has `DEFAULT_WIDGET_SITE_KEY` configured, `data-site-key` is
+optional:
+
+```html
+<script src="https://chat.example.com/widget/embed.js" defer></script>
+```
+
+An explicit `data-site-key` always overrides the server default. Use an
+explicit key when the same deployment serves multiple tenant sites.
+
 The loader stores an opaque visitor token in the host site's `localStorage` and
 renders the chat UI in an iframe, keeping widget styles isolated from the host.
 The current token is available as `window.YappingFrog.getVisitorToken()` so the

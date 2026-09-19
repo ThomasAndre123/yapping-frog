@@ -26,11 +26,20 @@ const requestOrigin = (request) =>
 
 async function widgetPlugin(app) {
   const database = app.dependencies.postgres;
+  const defaultSiteKey = process.env.DEFAULT_WIDGET_SITE_KEY?.trim() || null;
 
   await app.register(staticPlugin, {
     root: widgetDirectory,
     prefix: '/widget/',
     decorateReply: false
+  });
+
+  app.get('/api/widget/v1/config', async (_request, reply) => {
+    if (!defaultSiteKey) {
+      return reply.code(404).send({ error: 'No default widget site is configured' });
+    }
+
+    return { siteKey: defaultSiteKey };
   });
 
   async function findSite(siteKey) {

@@ -1,14 +1,18 @@
 const script = document.currentScript as HTMLScriptElement | null;
-const siteKey = script?.dataset.siteKey;
 
-if (script && siteKey) {
+if (script) {
+    const configuredSiteKey = script.dataset.siteKey;
     const widgetOrigin = new URL(script.src).origin;
-    const storageKey = `yapping-frog:${siteKey}:visitor-token`;
+    const storageId = configuredSiteKey ?? 'default';
+    const storageKey = `yapping-frog:${storageId}:visitor-token`;
     const visitorToken = window.localStorage.getItem(storageKey);
     const frame = document.createElement('iframe');
     const url = new URL('/widget/', widgetOrigin);
 
-    url.searchParams.set('siteKey', siteKey);
+    if (configuredSiteKey) {
+        url.searchParams.set('siteKey', configuredSiteKey);
+    }
+
     url.searchParams.set('parentOrigin', window.location.origin);
 
     if (visitorToken) {
@@ -30,11 +34,11 @@ if (script && siteKey) {
     ].join(';');
     document.body.appendChild(frame);
 
-    const yappingFrog = {
-        getVisitorToken: () => window.localStorage.getItem(storageKey),
-    };
-
-    Object.assign(window, { YappingFrog: yappingFrog });
+    Object.assign(window, {
+        YappingFrog: {
+            getVisitorToken: () => window.localStorage.getItem(storageKey),
+        },
+    });
 
     window.addEventListener('message', (event) => {
         if (event.origin !== widgetOrigin || event.source !== frame.contentWindow) {
@@ -43,7 +47,7 @@ if (script && siteKey) {
 
         if (
             event.data?.type === 'yapping-frog.visitor-token' &&
-            event.data.siteKey === siteKey
+            (!configuredSiteKey || event.data.siteKey === configuredSiteKey)
         ) {
             window.localStorage.setItem(storageKey, event.data.visitorToken);
         }

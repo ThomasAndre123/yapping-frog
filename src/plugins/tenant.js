@@ -21,7 +21,9 @@ async function tenantPlugin(app, options) {
   const ttlHours = Number(options.sessionTtlHours ?? process.env.TENANT_SESSION_TTL_HOURS ?? 12);
 
   await app.register(staticPlugin, { root: tenantDirectory, prefix: '/app/', decorateReply: false });
+  await app.register(staticPlugin, { root: tenantDirectory, prefix: '/tenant/', decorateReply: false });
   app.get('/app', async (_request, reply) => reply.redirect('/app/'));
+  app.get('/tenant', async (_request, reply) => reply.redirect('/tenant/'));
 
   async function authenticate(request, reply) {
     const token = cookieValue(request.headers.cookie, 'tenant_session');

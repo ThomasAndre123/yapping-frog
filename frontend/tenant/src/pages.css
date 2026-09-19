@@ -1,6 +1,12 @@
 .search { width: 100%; margin: 16px 0; }
 .resource-line { display: grid; grid-template-columns: 1.4fr 1.5fr .6fr auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid #e2e8f0; }
 .resource-line > div { display: grid; gap: 4px; }
+.embed-instructions { margin-top: 18px; border: 1px solid #bbd8c8; border-radius: 12px; padding: 14px 16px; background: #f0faf4; }
+.embed-instructions p { margin: 6px 0 0; color: #52645a; }
+.embed-instructions .copy-error { color: #b42318; }
+.site-actions { display: flex !important; grid-auto-flow: column; gap: 8px !important; }
+.site-actions button { white-space: nowrap; }
+.embed-code { grid-column: 1 / -1; display: block; border-radius: 8px; padding: 10px; background: #f1f5f9; white-space: pre-wrap; overflow-wrap: anywhere; }
 .list-header { display: grid; gap: 14px; padding: 10px 0; color: #64748b; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; }
 .resource-header { grid-template-columns: 1.4fr 1.5fr .6fr auto; }
 .user-header { grid-template-columns: 2fr 1fr 1fr auto; }
@@ -14,4 +20,4 @@ button.danger { background: #b91c1c; }
 .profile-card { max-width: 620px; }
 .profile-card form { display: grid; gap: 16px; }
 .profile-card hr { width: 100%; border: 0; border-top: 1px solid #e2e8f0; }
-@media (max-width: 800px) { .resource-line { grid-template-columns: 1fr; } .list-header { display: none; } }
+@media (max-width: 800px) { .resource-line { grid-template-columns: 1fr; } .list-header { display: none; } .site-actions { grid-auto-flow: row; } }
