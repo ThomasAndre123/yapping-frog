@@ -59,7 +59,8 @@ async function tenantPlugin(app, options) {
 
   async function publishRoomEvent(request, room, type, data) {
     let memberIds = [];
-    if (room.visibility === 'private') {
+    const visibility = room.room_kind === 'visitor' ? 'tenant' : room.visibility;
+    if (visibility === 'private') {
       const members = await database.query(
         'SELECT tenant_user_id FROM tenant_chat_room_members WHERE room_id=$1',
         [room.id]
@@ -68,7 +69,7 @@ async function tenantPlugin(app, options) {
     }
     app.tenantRealtime.publishRoom({
       tenantId: request.tenantUser.tenant_id,
-      visibility: room.visibility,
+      visibility,
       memberIds,
       event: { type, data }
     });
@@ -228,18 +229,20 @@ async function tenantPlugin(app, options) {
     return { user: result.rows[0] };
   });
 
-  const accessibleRoom = `room.tenant_id=$1 AND (room.visibility='tenant' OR room.created_by=$2 OR EXISTS
+  const accessibleRoom = `room.tenant_id=$1 AND (room.room_kind='visitor' OR room.visibility='tenant' OR room.created_by=$2 OR EXISTS
     (SELECT 1 FROM tenant_chat_room_members member WHERE member.room_id=room.id AND member.tenant_user_id=$2))`;
   app.get('/api/tenant/v1/rooms', { preHandler: authenticate }, async (request) => ({ rooms: (await database.query(`
     SELECT room.public_id,room.title,room.visibility,room.room_kind,room.pinned,room.created_at,room.updated_at,
-      creator.display_name AS creator_name,
+      COALESCE(creator.display_name,visitor.display_name,'Website visitor') AS creator_name,
       (SELECT content FROM tenant_chat_messages WHERE room_id=room.id ORDER BY id DESC LIMIT 1) AS last_message,
       (SELECT COUNT(*)::INTEGER FROM tenant_chat_messages message
-       WHERE message.room_id=room.id AND message.sender_id<>$2 AND message.id>COALESCE(
+       WHERE message.room_id=room.id AND message.sender_id IS DISTINCT FROM $2 AND message.id>COALESCE(
          (SELECT last_read_message_id FROM tenant_chat_room_reads read_state
           WHERE read_state.room_id=room.id AND read_state.tenant_user_id=$2), 0
        )) AS unread_count
-    FROM tenant_chat_rooms room JOIN tenant_users creator ON creator.id=room.created_by
+    FROM tenant_chat_rooms room
+    LEFT JOIN tenant_users creator ON creator.id=room.created_by
+    LEFT JOIN widget_visitors visitor ON visitor.id=room.visitor_id
     WHERE ${accessibleRoom} ORDER BY room.pinned DESC,room.updated_at DESC`,
   [request.tenantUser.tenant_id, request.tenantUser.id])).rows }));
   app.post('/api/tenant/v1/rooms', { preHandler: authenticate }, async (request, reply) => {
@@ -312,15 +315,19 @@ async function tenantPlugin(app, options) {
       WHERE log.tenant_id=$1 ORDER BY log.id DESC LIMIT 200`, [request.tenantUser.tenant_id])).rows
   }));
   app.get('/api/tenant/v1/rooms/:id/messages', { preHandler: authenticate }, async (request, reply) => {
-    const room = await database.query(`SELECT room.id,room.visibility FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
+    const room = await database.query(`SELECT room.id,room.visibility,room.room_kind FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
       [request.tenantUser.tenant_id, request.tenantUser.id, request.params.id]);
     if (!room.rowCount) return reply.code(404).send({ error: 'Room not found' });
     return { messages: (await database.query(`SELECT message.public_id,message.content,message.created_at,
-      sender.public_id AS sender_public_id,sender.display_name AS sender_name FROM tenant_chat_messages message
-      JOIN tenant_users sender ON sender.id=message.sender_id WHERE message.room_id=$1 ORDER BY message.id`, [room.rows[0].id])).rows };
+      sender.public_id AS sender_public_id,
+      COALESCE(sender.display_name,visitor.display_name,'Website visitor') AS sender_name
+      FROM tenant_chat_messages message
+      LEFT JOIN tenant_users sender ON sender.id=message.sender_id
+      LEFT JOIN widget_visitors visitor ON visitor.id=message.visitor_id
+      WHERE message.room_id=$1 ORDER BY message.id`, [room.rows[0].id])).rows };
   });
   app.post('/api/tenant/v1/rooms/:id/messages', { preHandler: authenticate }, async (request, reply) => {
-    const room = await database.query(`SELECT room.id,room.visibility FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
+    const room = await database.query(`SELECT room.id,room.visibility,room.room_kind FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
       [request.tenantUser.tenant_id, request.tenantUser.id, request.params.id]);
     if (!room.rowCount) return reply.code(404).send({ error: 'Room not found' });
     const result = await database.query(`INSERT INTO tenant_chat_messages (room_id,sender_id,content) VALUES ($1,$2,$3)
