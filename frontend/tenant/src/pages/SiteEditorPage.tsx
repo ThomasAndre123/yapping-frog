@@ -1,0 +1,7 @@
+import { FormEvent } from 'react'; import type { Site } from '../types';
+const split=(value:FormDataEntryValue|null)=>String(value??'').split(',').map(x=>x.trim()).filter(Boolean);
+export function SiteEditorPage({site,onBack,onCreate,onUpdate}:{site?:Site;onBack:()=>void;onCreate:(name:string,domains:string[])=>Promise<void>;onUpdate:(site:Site)=>Promise<void>}){
+ return <section className="card"><div className="title-row"><div><h2>{site?'Edit site':'Add site'}</h2><p>Configure the widget installation and domain access.</p></div><button className="muted" onClick={onBack}>Back to sites</button></div>
+ <form onSubmit={async(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const f=new FormData(e.currentTarget);if(site)await onUpdate({...site,name:String(f.get('name')),allowed_domains:split(f.get('domains')),status:Number(f.get('status')) as 1|2});else await onCreate(String(f.get('name')),split(f.get('domains')));onBack();}}>
+ <div className="grid"><label>Name<input name="name" defaultValue={site?.name} required maxLength={200}/></label><label>Allowed domains<input name="domains" defaultValue={site?.allowed_domains.join(', ')} required placeholder="example.com or *"/></label>{site&&<label>Status<select name="status" defaultValue={site.status}><option value="1">Active</option><option value="2">Disabled</option></select></label>}{site&&<div><small>Widget key</small><code className="block-code">{site.widget_key}</code></div>}</div><button>{site?'Save site':'Create site'}</button></form></section>;
+}

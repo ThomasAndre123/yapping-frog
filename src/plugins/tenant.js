@@ -168,7 +168,12 @@ async function tenantPlugin(app, options) {
   app.get('/api/tenant/v1/rooms', { preHandler: authenticate }, async (request) => ({ rooms: (await database.query(`
     SELECT room.public_id,room.title,room.visibility,room.pinned,room.created_at,room.updated_at,
       creator.display_name AS creator_name,
-      (SELECT content FROM tenant_chat_messages WHERE room_id=room.id ORDER BY id DESC LIMIT 1) AS last_message
+      (SELECT content FROM tenant_chat_messages WHERE room_id=room.id ORDER BY id DESC LIMIT 1) AS last_message,
+      (SELECT COUNT(*)::INTEGER FROM tenant_chat_messages message
+       WHERE message.room_id=room.id AND message.sender_id<>$2 AND message.id>COALESCE(
+         (SELECT last_read_message_id FROM tenant_chat_room_reads read_state
+          WHERE read_state.room_id=room.id AND read_state.tenant_user_id=$2), 0
+       )) AS unread_count
     FROM tenant_chat_rooms room JOIN tenant_users creator ON creator.id=room.created_by
     WHERE ${accessibleRoom} ORDER BY room.pinned DESC,room.updated_at DESC`,
   [request.tenantUser.tenant_id, request.tenantUser.id])).rows }));
@@ -224,6 +229,17 @@ async function tenantPlugin(app, options) {
     await database.query('UPDATE tenant_chat_rooms SET updated_at=NOW() WHERE id=$1', [room.rows[0].id]);
     return reply.code(201).send({ message: { ...result.rows[0], sender_public_id: request.tenantUser.public_id,
       sender_name: request.tenantUser.display_name } });
+  });
+  app.post('/api/tenant/v1/rooms/:id/read', { preHandler: authenticate }, async (request, reply) => {
+    const room = await database.query(`SELECT room.id FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
+      [request.tenantUser.tenant_id, request.tenantUser.id, request.params.id]);
+    if (!room.rowCount) return reply.code(404).send({ error: 'Room not found' });
+    await database.query(`INSERT INTO tenant_chat_room_reads (room_id,tenant_user_id,last_read_message_id)
+      SELECT $1,$2,MAX(id) FROM tenant_chat_messages WHERE room_id=$1
+      ON CONFLICT (room_id,tenant_user_id) DO UPDATE
+      SET last_read_message_id=EXCLUDED.last_read_message_id,updated_at=NOW()`,
+    [room.rows[0].id, request.tenantUser.id]);
+    return reply.code(204).send();
   });
 }
 

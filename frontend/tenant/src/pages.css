@@ -1,0 +1,9 @@
+.search { width: 100%; margin: 16px 0; }
+.resource-line { display: grid; grid-template-columns: 1.4fr 1.5fr .6fr auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid #e2e8f0; }
+.resource-line > div { display: grid; gap: 4px; }
+.resource-line code, .block-code { overflow-wrap: anywhere; }
+.block-code { display: block; margin-top: 8px; }
+.badge { display: inline-block; min-width: 22px; margin-left: 8px; border-radius: 999px; padding: 2px 7px; background: #dc2626; color: white; font-size: 11px; text-align: center; }
+.nav-badge { float: right; background: #ef4444; }
+.member-editor { margin: 0 0 18px; }
+@media (max-width: 800px) { .resource-line { grid-template-columns: 1fr; } }
