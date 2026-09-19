@@ -28,12 +28,29 @@ export const widgetApi = {
     config: () => request<{ siteKey: string }>('/api/widget/v1/config'),
 
     session: (siteKey: string, visitorToken?: string) =>
-        request<{ visitorToken: string; site: { publicId: string; name: string } }>(
+        request<{
+            visitorToken: string;
+            site: { publicId: string; name: string };
+            visitor: { public_id: string; display_name: string | null };
+        }>(
             '/api/widget/v1/session',
             {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ siteKey, visitorToken }),
+            },
+        ),
+
+    updateProfile: (visitorToken: string, displayName: string) =>
+        request<{ visitor: { public_id: string; display_name: string } }>(
+            '/api/widget/v1/profile',
+            {
+                method: 'PATCH',
+                headers: {
+                    authorization: `Bearer ${visitorToken}`,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({ displayName }),
             },
         ),
 

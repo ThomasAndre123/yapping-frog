@@ -10,6 +10,7 @@ export function App() {
     const [open, setOpen] = useState(false);
     const [siteName, setSiteName] = useState('Support');
     const [visitorToken, setVisitorToken] = useState<string>();
+    const [displayName, setDisplayName] = useState<string>();
     const [messages, setMessages] = useState<WidgetMessage[]>([]);
     const [error, setError] = useState<string>();
     const [sending, setSending] = useState(false);
@@ -38,6 +39,7 @@ export function App() {
         start()
             .then(async (result) => {
                 setVisitorToken(result.visitorToken);
+                setDisplayName(result.visitor.display_name ?? undefined);
                 setSiteName(result.site.name);
                 window.parent.postMessage(
                     {
@@ -101,6 +103,31 @@ export function App() {
         }
     }
 
+    async function saveName(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        if (!visitorToken) {
+            return;
+        }
+
+        const form = event.currentTarget;
+        const data = new FormData(form);
+        const name = String(data.get('displayName') ?? '').trim();
+
+        if (!name) {
+            return;
+        }
+
+        try {
+            const result = await widgetApi.updateProfile(visitorToken, name);
+            setDisplayName(result.visitor.display_name);
+            setError(undefined);
+            await loadMessages(visitorToken);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'Could not save name');
+        }
+    }
+
     return (
         <div className="widget">
             {open && (
@@ -118,6 +145,22 @@ export function App() {
                             ×
                         </button>
                     </header>
+
+                    {!displayName && visitorToken && (
+                        <form className="name-prompt" onSubmit={saveName}>
+                            <label htmlFor="visitor-name">What should we call you?</label>
+                            <div>
+                                <input
+                                    id="visitor-name"
+                                    name="displayName"
+                                    maxLength={200}
+                                    placeholder="Your name"
+                                    required
+                                />
+                                <button>Save name</button>
+                            </div>
+                        </form>
+                    )}
 
                     <div className="messages" ref={messageList} aria-live="polite">
                         {messages.length === 0 && !error && (

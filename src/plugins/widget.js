@@ -175,6 +175,55 @@ async function widgetPlugin(app) {
     `, [request.widgetVisitor.id])).rows
   }));
 
+  app.patch('/api/widget/v1/profile', {
+    preHandler: authenticateVisitor,
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['displayName'],
+        properties: {
+          displayName: { type: 'string', minLength: 1, maxLength: 200 }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const displayName = request.body.displayName.trim();
+    if (!displayName) {
+      return reply.code(400).send({ error: 'Name is required' });
+    }
+
+    const visitor = await database.query(`
+      UPDATE widget_visitors
+      SET display_name=$1,updated_at=NOW()
+      WHERE id=$2 AND display_name IS NULL
+      RETURNING public_id,display_name
+    `, [displayName, request.widgetVisitor.id]);
+    if (!visitor.rowCount) {
+      return reply.code(409).send({ error: 'Visitor name has already been set' });
+    }
+
+    const rooms = await database.query(`
+      UPDATE tenant_chat_rooms
+      SET title=$1,updated_at=NOW()
+      WHERE visitor_id=$2
+      RETURNING public_id
+    `, [displayName, request.widgetVisitor.id]);
+
+    for (const room of rooms.rows) {
+      app.tenantRealtime.publishRoom({
+        tenantId: request.widgetVisitor.tenant_id,
+        visibility: 'tenant',
+        event: {
+          type: 'tenant.room.updated',
+          data: { roomId: room.public_id }
+        }
+      });
+    }
+
+    return { visitor: visitor.rows[0] };
+  });
+
   app.post('/api/widget/v1/messages', {
     preHandler: authenticateVisitor,
     schema: {
