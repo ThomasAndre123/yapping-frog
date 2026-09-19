@@ -23,7 +23,14 @@ export function App() {
     useEffect(() => {
         const start = async () => {
             const siteKey = requestedSiteKey ?? (await widgetApi.config()).siteKey;
-            const result = await widgetApi.session(siteKey, savedVisitorToken);
+            const storageKey = `yapping-frog:${siteKey}:visitor-token`;
+            const storedToken = window.localStorage.getItem(storageKey) ?? undefined;
+            const result = await widgetApi.session(
+                siteKey,
+                savedVisitorToken ?? storedToken,
+            );
+
+            window.localStorage.setItem(storageKey, result.visitorToken);
 
             return { ...result, siteKey };
         };

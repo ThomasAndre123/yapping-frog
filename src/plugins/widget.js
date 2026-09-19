@@ -24,6 +24,17 @@ const hostname = (origin) => {
 const requestOrigin = (request) =>
   request.headers['x-widget-origin'] ?? request.headers.origin;
 
+function isSameServerOrigin(request) {
+  if (request.headers['sec-fetch-site'] === 'same-origin') return true;
+
+  try {
+    const source = request.headers.origin ?? request.headers.referer;
+    return new URL(source).host === request.headers.host;
+  } catch {
+    return false;
+  }
+}
+
 async function widgetPlugin(app) {
   const database = app.dependencies.postgres;
   const defaultSiteKey = process.env.DEFAULT_WIDGET_SITE_KEY?.trim() || null;
@@ -54,10 +65,14 @@ async function widgetPlugin(app) {
   }
 
   async function requireSite(request, reply) {
-    const site = await findSite(request.body?.siteKey ?? request.query?.siteKey);
+    const siteKey = request.body?.siteKey ?? request.query?.siteKey;
+    const site = await findSite(siteKey);
     const requestHostname = hostname(requestOrigin(request));
     if (!site) return reply.code(404).send({ error: 'Site not found or unavailable' });
-    if (!requestHostname || !isHostnameAllowed(requestHostname, site.allowed_domains)) {
+    const directDefaultPreview = !request.headers['x-widget-origin'] &&
+      siteKey === defaultSiteKey && isSameServerOrigin(request);
+    if (!directDefaultPreview &&
+        (!requestHostname || !isHostnameAllowed(requestHostname, site.allowed_domains))) {
       return reply.code(403).send({ error: 'Origin is not allowed for this site' });
     }
     request.widgetSite = site;
@@ -68,7 +83,7 @@ async function widgetPlugin(app) {
     if (!token) return reply.code(401).send({ error: 'Visitor session required' });
     const result = await database.query(`
       SELECT visitor.id,visitor.public_id,visitor.site_id,visitor.display_name,
-             site.tenant_id,site.allowed_domains
+             site.tenant_id,site.allowed_domains,site.widget_key
       FROM widget_visitor_sessions session
       JOIN widget_visitors visitor ON visitor.id=session.visitor_id
       JOIN tenant_sites site ON site.id=visitor.site_id
@@ -77,7 +92,10 @@ async function widgetPlugin(app) {
     const visitor = result.rows[0];
     const requestHostname = hostname(requestOrigin(request));
     if (!visitor) return reply.code(401).send({ error: 'Visitor session expired' });
-    if (!requestHostname || !isHostnameAllowed(requestHostname, visitor.allowed_domains)) {
+    const directDefaultPreview = !request.headers['x-widget-origin'] &&
+      visitor.widget_key === defaultSiteKey && isSameServerOrigin(request);
+    if (!directDefaultPreview &&
+        (!requestHostname || !isHostnameAllowed(requestHostname, visitor.allowed_domains))) {
       return reply.code(403).send({ error: 'Origin is not allowed for this site' });
     }
     request.widgetVisitor = visitor;
