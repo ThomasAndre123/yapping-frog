@@ -50,6 +50,13 @@ async function tenantPlugin(app, options) {
     }
   };
 
+  async function audit(request, action, targetType, targetId, metadata) {
+    await database.query(`INSERT INTO tenant_audit_log
+      (tenant_id,tenant_user_id,action,target_type,target_id,metadata,ip_address)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)`, [request.tenantUser.tenant_id,
+      request.tenantUser.id, action, targetType, targetId, metadata, request.ip]);
+  }
+
   app.post('/api/tenant/v1/session', { schema: { body: { type: 'object', additionalProperties: false,
     required: ['tenant', 'email', 'password'], properties: {
       tenant: { type: 'string', minLength: 2, maxLength: 63 },
@@ -103,6 +110,9 @@ async function tenantPlugin(app, options) {
     const result = await database.query(`INSERT INTO tenant_sites (tenant_id, name, widget_key, allowed_domains)
       VALUES ($1,$2,$3,$4) RETURNING public_id,name,widget_key,allowed_domains,status,created_at,updated_at`,
     [request.tenantUser.tenant_id, request.body.name.trim(), `site_pk_${randomBytes(24).toString('base64url')}`, domains]);
+    await audit(request, 'site.create', 'tenant_site', result.rows[0].public_id, {
+      name: result.rows[0].name, allowedDomains: result.rows[0].allowed_domains, status: result.rows[0].status
+    });
     return reply.code(201).send({ site: result.rows[0] });
   });
   app.patch('/api/tenant/v1/sites/:id', { preHandler: manage }, async (request, reply) => {
@@ -114,6 +124,9 @@ async function tenantPlugin(app, options) {
       WHERE public_id=$4 AND tenant_id=$5 RETURNING public_id,name,widget_key,allowed_domains,status,created_at,updated_at`,
     [request.body.name.trim(), domains, request.body.status, request.params.id, request.tenantUser.tenant_id]);
     if (!result.rowCount) return reply.code(404).send({ error: 'Site not found' });
+    await audit(request, 'site.update', 'tenant_site', result.rows[0].public_id, {
+      name: result.rows[0].name, allowedDomains: result.rows[0].allowed_domains, status: result.rows[0].status
+    });
     return { site: result.rows[0] };
   });
 
@@ -127,6 +140,10 @@ async function tenantPlugin(app, options) {
         VALUES ($1,LOWER($2),$3,$4,$5) RETURNING public_id,email,display_name,role,status,created_at,last_login_at`,
       [request.tenantUser.tenant_id, request.body.email.trim(), request.body.displayName.trim(), request.body.role,
         await hashPassword(request.body.password)]);
+      await audit(request, 'user.create', 'tenant_user', result.rows[0].public_id, {
+        email: result.rows[0].email, displayName: result.rows[0].display_name,
+        role: result.rows[0].role, status: result.rows[0].status
+      });
       return reply.code(201).send({ user: result.rows[0] });
     } catch (error) { if (error.code === '23505') return reply.code(409).send({ error: 'Email already exists' }); throw error; }
   });
@@ -138,6 +155,11 @@ async function tenantPlugin(app, options) {
     [request.body.email.trim(), request.body.displayName.trim(), request.body.role, request.body.status,
       passwordHash, request.params.id, request.tenantUser.tenant_id]);
     if (!result.rowCount) return reply.code(404).send({ error: 'User not found' });
+    await audit(request, 'user.update', 'tenant_user', result.rows[0].public_id, {
+      email: result.rows[0].email, displayName: result.rows[0].display_name,
+      role: result.rows[0].role, status: result.rows[0].status,
+      passwordChanged: Boolean(request.body.password)
+    });
     return { user: result.rows[0] };
   });
 
@@ -162,15 +184,29 @@ async function tenantPlugin(app, options) {
         ON CONFLICT DO NOTHING`, [room.id, request.tenantUser.tenant_id, request.body.memberIds ?? [], request.tenantUser.id]);
     }
     delete room.id;
+    await audit(request, 'room.create', 'tenant_chat_room', room.public_id, {
+      title: room.title, visibility: room.visibility, pinned: room.pinned,
+      memberIds: visibility === 'private' ? request.body.memberIds ?? [] : []
+    });
     return reply.code(201).send({ room });
   });
-  app.patch('/api/tenant/v1/rooms/:id', { preHandler: authenticate }, async (request, reply) => {
+  app.patch('/api/tenant/v1/rooms/:id', { preHandler: manage }, async (request, reply) => {
     const result = await database.query(`UPDATE tenant_chat_rooms room SET title=$1,pinned=$2,updated_at=NOW()
-      WHERE room.public_id=$3 AND room.created_by=$4 RETURNING public_id,title,visibility,pinned,created_at,updated_at`,
-    [request.body.title.trim(), Boolean(request.body.pinned), request.params.id, request.tenantUser.id]);
-    if (!result.rowCount) return reply.code(404).send({ error: 'Room not found or not owned by you' });
+      WHERE room.public_id=$3 AND room.tenant_id=$4 RETURNING public_id,title,visibility,pinned,created_at,updated_at`,
+    [request.body.title.trim(), Boolean(request.body.pinned), request.params.id, request.tenantUser.tenant_id]);
+    if (!result.rowCount) return reply.code(404).send({ error: 'Room not found' });
+    await audit(request, 'room.update', 'tenant_chat_room', result.rows[0].public_id, {
+      title: result.rows[0].title, visibility: result.rows[0].visibility, pinned: result.rows[0].pinned
+    });
     return { room: result.rows[0] };
   });
+
+  app.get('/api/tenant/v1/audit-log', { preHandler: manage }, async (request) => ({
+    entries: (await database.query(`SELECT log.id,log.action,log.target_type,log.target_id,
+      log.metadata,log.ip_address,log.created_at,user.display_name AS user_name,user.email AS user_email
+      FROM tenant_audit_log log LEFT JOIN tenant_users user ON user.id=log.tenant_user_id
+      WHERE log.tenant_id=$1 ORDER BY log.id DESC LIMIT 200`, [request.tenantUser.tenant_id])).rows
+  }));
   app.get('/api/tenant/v1/rooms/:id/messages', { preHandler: authenticate }, async (request, reply) => {
     const room = await database.query(`SELECT room.id FROM tenant_chat_rooms room WHERE room.public_id=$3 AND ${accessibleRoom}`,
       [request.tenantUser.tenant_id, request.tenantUser.id, request.params.id]);

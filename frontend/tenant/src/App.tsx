@@ -1,8 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { tenantApi } from './api';
-import type { Message, Role, Room, Session, Site, User } from './types';
+import type { AuditEntry, Message, Role, Room, Session, Site, User } from './types';
 
-type Page = 'chat' | 'sites' | 'users';
+type Page = 'chat' | 'sites' | 'users' | 'audit';
 const split = (value: FormDataEntryValue | null) => String(value ?? '').split(',').map(x => x.trim()).filter(Boolean);
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'Unexpected error';
 
@@ -14,6 +14,7 @@ export function App() {
   const [sites, setSites] = useState<Site[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const canManage = session?.user.role !== 'agent';
 
   const load = useCallback(async () => {
@@ -21,18 +22,22 @@ export function App() {
     setSites(siteData.sites); setUsers(userData.users); setRooms(roomData.rooms);
   }, []);
 
-  useEffect(() => { tenantApi.session().then(value => { setSession(value); return load(); })
+  useEffect(() => { tenantApi.session().then(async value => { setSession(value); await load();
+    if (value.user.role !== 'agent') setAuditEntries((await tenantApi.auditLog()).entries); })
     .catch(() => {}).finally(() => setLoading(false)); }, [load]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);
     try { await tenantApi.login(String(form.get('tenant')), String(form.get('email')), String(form.get('password')));
       const next = await tenantApi.session(); setSession(next); await load();
+      if (next.user.role !== 'agent') setAuditEntries((await tenantApi.auditLog()).entries);
     } catch (error) { setNotice(errorText(error)); }
   }
   async function logout() { if (!session) return; await tenantApi.logout(session.csrfToken); setSession(undefined); }
   async function run(operation: () => Promise<unknown>, success: string) {
-    try { await operation(); setNotice(success); await load(); } catch (error) { setNotice(errorText(error)); throw error; }
+    try { await operation(); setNotice(success); await load();
+      if (canManage) setAuditEntries((await tenantApi.auditLog()).entries);
+    } catch (error) { setNotice(errorText(error)); throw error; }
   }
 
   if (loading) return <main className="center">Loading workspace…</main>;
@@ -47,13 +52,15 @@ export function App() {
   return <div className="shell"><aside><div><span className="brand">Yapping Frog</span><h2>{session.tenant.name}</h2></div>
     <nav><button className={page === 'chat' ? 'active' : ''} onClick={() => setPage('chat')}>Chat rooms</button>
       <button className={page === 'sites' ? 'active' : ''} onClick={() => setPage('sites')}>Sites</button>
-      <button className={page === 'users' ? 'active' : ''} onClick={() => setPage('users')}>Users</button></nav>
+      <button className={page === 'users' ? 'active' : ''} onClick={() => setPage('users')}>Users</button>
+      {canManage && <button className={page === 'audit' ? 'active' : ''} onClick={() => setPage('audit')}>Audit log</button>}</nav>
     <div className="account"><strong>{session.user.displayName}</strong><small>{session.user.role}</small><button className="muted" onClick={logout}>Sign out</button></div>
-  </aside><main><header><div><h1>{page === 'chat' ? 'Chat rooms' : page === 'sites' ? 'Tenant sites' : 'Tenant users'}</h1>
+  </aside><main><header><div><h1>{page === 'chat' ? 'Chat rooms' : page === 'sites' ? 'Tenant sites' : page === 'users' ? 'Tenant users' : 'Tenant audit log'}</h1>
     <p>{session.tenant.slug}</p></div></header>{notice && <div className="notice success">{notice}</div>}
     {page === 'sites' && <Sites sites={sites} csrf={session.csrfToken} canManage={canManage} run={run} />}
     {page === 'users' && <Users users={users} csrf={session.csrfToken} canManage={canManage} run={run} />}
-    {page === 'chat' && <Chat rooms={rooms} users={users} session={session} run={run} />}
+    {page === 'chat' && <Chat rooms={rooms} users={users} session={session} canManage={canManage} run={run} />}
+    {page === 'audit' && canManage && <Audit entries={auditEntries} />}
   </main></div>;
 }
 
@@ -89,7 +96,7 @@ function UserEditor({user,csrf,run,onBack}:{user:User;csrf:string;run:Runner;onB
 }
 function RoleSelect({value='agent'}:{value?:Role}) { return <select name="role" defaultValue={value}><option value="owner">Owner</option><option value="administrator">Administrator</option><option value="agent">Agent</option></select>; }
 
-function Chat({rooms,users,session,run}:{rooms:Room[];users:User[];session:Session;run:Runner}) {
+function Chat({rooms,users,session,canManage,run}:{rooms:Room[];users:User[];session:Session;canManage:boolean;run:Runner}) {
   const [selected,setSelected]=useState<Room>(); const [messages,setMessages]=useState<Message[]>([]);
   const fetchMessages=useCallback(async(room:Room)=>{setMessages((await tenantApi.messages(room.public_id)).messages);},[]);
   useEffect(()=>{if(!selected)return;fetchMessages(selected);const timer=setInterval(()=>fetchMessages(selected).catch(()=>{}),3000);return()=>clearInterval(timer);},[selected,fetchMessages]);
@@ -101,10 +108,19 @@ function Chat({rooms,users,session,run}:{rooms:Room[];users:User[];session:Sessi
     <label className="check"><input type="checkbox" name="pinned"/>Pin at top</label><button>Create room</button></form>
     <div className="room-list">{rooms.map(room=><button className={selected?.public_id===room.public_id?'selected':''} key={room.public_id} onClick={()=>setSelected(room)}>
       <span>{room.pinned?'📌 ':''}{room.title}</span><small>{room.visibility} · {room.last_message??'No messages'}</small></button>)}</div></section>
-    <section className="card conversation">{!selected?<div className="empty">Select a room to start chatting.</div>:<><div className="title-row"><div><h2>{selected.title}</h2><p>{selected.visibility} room</p></div>
-      <button className="muted" onClick={async()=>{await run(()=>tenantApi.updateRoom(session.csrfToken,{...selected,pinned:!selected.pinned}),selected.pinned?'Room unpinned.':'Room pinned.');setSelected({...selected,pinned:!selected.pinned});}}>{selected.pinned?'Unpin':'Pin'}</button></div>
+    <section className="card conversation">{!selected?<div className="empty">Select a room to start chatting.</div>:<>{canManage
+      ? <form className="room-settings" key={selected.public_id} onSubmit={async event=>{event.preventDefault();const form=new FormData(event.currentTarget);
+        const updated={...selected,title:String(form.get('title')),pinned:form.get('pinned')==='on'};
+        await run(()=>tenantApi.updateRoom(session.csrfToken,updated),'Room updated.');setSelected(updated);}}>
+        <label>Room name<input name="title" defaultValue={selected.title} required maxLength={200}/></label>
+        <label className="check"><input name="pinned" type="checkbox" defaultChecked={selected.pinned}/>Pinned</label><button>Save room</button></form>
+      : <div className="title-row"><div><h2>{selected.title}</h2><p>{selected.visibility} room</p></div></div>}
       <div className="messages">{messages.map(m=><div className={m.sender_public_id===session.user.publicId?'message mine':'message'} key={m.public_id}><strong>{m.sender_name}</strong><p>{m.content}</p><small>{new Date(m.created_at).toLocaleString()}</small></div>)}</div>
       <form className="composer" onSubmit={async e=>{e.preventDefault();const el=e.currentTarget;const f=new FormData(el);await tenantApi.sendMessage(session.csrfToken,selected.public_id,String(f.get('content')));el.reset();await fetchMessages(selected);}}>
         <input name="content" required maxLength={10000} placeholder="Write a message…"/><button>Send</button></form></>}</section></div>;
 }
+function Audit({entries}:{entries:AuditEntry[]}) { return <section className="card"><div className="title-row"><div><h2>Recent activity</h2><p>Site, user, and room management events.</p></div></div>
+  <div className="audit-list">{entries.map(entry=><article key={entry.id}><div><strong>{entry.action}</strong><small>{entry.user_name??entry.user_email??'Deleted user'} · {new Date(entry.created_at).toLocaleString()}</small></div>
+    <code>{entry.target_id??entry.target_type}</code><pre>{entry.metadata==null?'No metadata':JSON.stringify(entry.metadata,null,2)}</pre></article>)}
+    {entries.length===0&&<p className="empty">No tenant activity recorded yet.</p>}</div></section>; }
 type Runner=(operation:()=>Promise<unknown>,success:string)=>Promise<void>;

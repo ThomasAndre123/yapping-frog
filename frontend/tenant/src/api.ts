@@ -1,4 +1,4 @@
-import type { Message, Room, Session, Site, User } from './types';
+import type { AuditEntry, Message, Room, Session, Site, User } from './types';
 
 async function request<T>(url: string, options: RequestInit & { csrf?: string } = {}): Promise<T> {
   const { csrf, ...init } = options;
@@ -25,5 +25,6 @@ export const tenantApi = {
   createRoom: (csrf: string, details: object) => request('/api/tenant/v1/rooms', { method: 'POST', csrf, body: JSON.stringify(details) }),
   updateRoom: (csrf: string, room: Room) => request(`/api/tenant/v1/rooms/${room.public_id}`, { method: 'PATCH', csrf, body: JSON.stringify({ title: room.title, pinned: room.pinned }) }),
   messages: (roomId: string) => request<{ messages: Message[] }>(`/api/tenant/v1/rooms/${roomId}/messages`),
-  sendMessage: (csrf: string, roomId: string, content: string) => request(`/api/tenant/v1/rooms/${roomId}/messages`, { method: 'POST', csrf, body: JSON.stringify({ content }) })
+  sendMessage: (csrf: string, roomId: string, content: string) => request(`/api/tenant/v1/rooms/${roomId}/messages`, { method: 'POST', csrf, body: JSON.stringify({ content }) }),
+  auditLog: () => request<{ entries: AuditEntry[] }>('/api/tenant/v1/audit-log')
 };
