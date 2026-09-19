@@ -203,8 +203,8 @@ async function tenantPlugin(app, options) {
 
   app.get('/api/tenant/v1/audit-log', { preHandler: manage }, async (request) => ({
     entries: (await database.query(`SELECT log.id,log.action,log.target_type,log.target_id,
-      log.metadata,log.ip_address,log.created_at,user.display_name AS user_name,user.email AS user_email
-      FROM tenant_audit_log log LEFT JOIN tenant_users user ON user.id=log.tenant_user_id
+      log.metadata,log.ip_address,log.created_at,actor.display_name AS user_name,actor.email AS user_email
+      FROM tenant_audit_log log LEFT JOIN tenant_users actor ON actor.id=log.tenant_user_id
       WHERE log.tenant_id=$1 ORDER BY log.id DESC LIMIT 200`, [request.tenantUser.tenant_id])).rows
   }));
   app.get('/api/tenant/v1/rooms/:id/messages', { preHandler: authenticate }, async (request, reply) => {

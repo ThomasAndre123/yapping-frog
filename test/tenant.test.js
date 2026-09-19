@@ -55,4 +55,10 @@ test('tenant owner can rename a room and the change is audited safely', async (t
   assert.deepEqual(audit.values[5], {
     title: 'Renamed room', visibility: 'private', pinned: true
   });
+
+  const auditResponse = await app.inject({ method: 'GET', url: '/api/tenant/v1/audit-log',
+    headers: { cookie: 'tenant_session=token' } });
+  assert.equal(auditResponse.statusCode, 200);
+  const auditRead = queries.find(({ sql }) => sql.includes('FROM tenant_audit_log'));
+  assert.match(auditRead.sql, /tenant_users actor/);
 });
