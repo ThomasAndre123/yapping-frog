@@ -38,7 +38,7 @@ export function SitesPage({
     }
 
     return (
-        <section className="card">
+        <section className="card sites-page">
             <div className="title-row">
                 <div>
                     <h2>Sites</h2>
@@ -79,8 +79,17 @@ export function SitesPage({
                             <small>{site.allowed_domains.join(', ')}</small>
                         </div>
 
-                        <code>{site.widget_key}</code>
-                        <span>{site.status === 1 ? 'Active' : 'Disabled'}</span>
+                        <div className="site-field widget-key-field">
+                            <span className="mobile-label">Widget key</span>
+                            <code>{site.widget_key}</code>
+                        </div>
+
+                        <div className="site-field">
+                            <span className="mobile-label">Status</span>
+                            <span className={`site-status status-${site.status}`}>
+                                {site.status === 1 ? 'Active' : 'Disabled'}
+                            </span>
+                        </div>
 
                         <div className="site-actions">
                             <button onClick={() => copyEmbedScript(site)}>

@@ -6,6 +6,13 @@
 .embed-instructions .copy-error { color: #b42318; }
 .site-actions { display: flex !important; grid-auto-flow: column; gap: 8px !important; }
 .site-actions button { white-space: nowrap; }
+.site-field { min-width: 0; }
+.widget-key-field code { overflow-wrap: anywhere; }
+.mobile-label { display: none; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.site-status { width: fit-content; border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 750; }
+.status-1 { color: #166534; background: #dcfce7; }
+.status-2 { color: #991b1b; background: #fee2e2; }
+.chat-back { display: none; }
 .embed-code { grid-column: 1 / -1; display: block; border-radius: 8px; padding: 10px; background: #f1f5f9; white-space: pre-wrap; overflow-wrap: anywhere; }
 .list-header { display: grid; gap: 14px; padding: 10px 0; color: #64748b; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; }
 .resource-header { grid-template-columns: 1.4fr 1.5fr .6fr auto; }
@@ -20,4 +27,34 @@ button.danger { background: #b91c1c; }
 .profile-card { max-width: 620px; }
 .profile-card form { display: grid; gap: 16px; }
 .profile-card hr { width: 100%; border: 0; border-top: 1px solid #e2e8f0; }
-@media (max-width: 800px) { .resource-line { grid-template-columns: 1fr; } .list-header { display: none; } .site-actions { grid-auto-flow: row; } }
+@media (max-width: 800px) {
+  .sites-page .title-row { align-items: stretch; flex-direction: column; gap: 14px; }
+  .sites-page .title-row > button { min-height: 46px; width: 100%; }
+  .embed-instructions { margin-top: 14px; padding: 14px; }
+  .sites-page .search { min-height: 46px; margin: 14px 0; font-size: 16px; }
+  .sites-page .list { display: grid; gap: 12px; }
+  .list-header { display: none; }
+  .sites-page .resource-line { grid-template-columns: minmax(0, 1fr); gap: 14px; border: 1px solid #dbe4df; border-radius: 14px; padding: 16px; background: #fff; box-shadow: 0 3px 12px #17231d0d; }
+  .sites-page .resource-line > div:first-child { border-bottom: 1px solid #e5ece8; padding-bottom: 12px; }
+  .sites-page .resource-line > div:first-child strong { font-size: 17px; }
+  .sites-page .resource-line > div:first-child small { overflow-wrap: anywhere; }
+  .mobile-label { display: block; margin-bottom: 3px; }
+  .site-actions { grid-auto-flow: row; grid-template-columns: 1fr; }
+  .site-actions button { min-height: 46px; width: 100%; }
+  .embed-code { font-size: 12px; }
+  .chat-layout { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 14px; }
+  .chat-layout > .card { width: 100%; min-width: 0; padding: 16px; }
+  .rooms { display: block; }
+  .conversation { display: none; min-height: 0; }
+  .chat-layout.has-selection .rooms { display: none; }
+  .chat-layout.has-selection .conversation { display: flex; }
+  .chat-back { display: block; min-height: 44px; width: 100%; margin-bottom: 14px; text-align: left; }
+  .rooms .title-row, .conversation .title-row { align-items: stretch; flex-direction: column; }
+  .rooms .title-row button, .conversation .title-row button { min-height: 44px; width: 100%; }
+  .room-list { max-height: 42dvh; overflow-y: auto; overscroll-behavior: contain; }
+  .room-list button { min-height: 54px; width: 100%; }
+  .conversation .messages { min-height: 45dvh; max-height: 58dvh; }
+  .composer { grid-template-columns: minmax(0, 1fr) auto; }
+  .composer input { min-width: 0; font-size: 16px; }
+  .composer button { min-height: 44px; }
+}

@@ -27,6 +27,7 @@ export function App() {
     const [session, setSession] = useState<Session>();
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState<Page>('chat');
+    const [navigationOpen, setNavigationOpen] = useState(false);
     const [notice, setNotice] = useState<string>();
     const [sites, setSites] = useState<Site[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -124,6 +125,22 @@ export function App() {
         };
     }, [session, loadRooms]);
 
+    useEffect(() => {
+        if (!navigationOpen) {
+            return;
+        }
+
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setNavigationOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', closeOnEscape);
+
+        return () => document.removeEventListener('keydown', closeOnEscape);
+    }, [navigationOpen]);
+
     async function login(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -216,6 +233,7 @@ export function App() {
     const go = (next: Page) => {
         setPage(next);
         setNotice(undefined);
+        setNavigationOpen(false);
     };
 
     const title =
@@ -231,7 +249,17 @@ export function App() {
 
     return (
         <div className="shell">
-            <aside>
+            <aside
+                id="tenant-navigation"
+                className={navigationOpen ? 'mobile-open' : ''}
+            >
+                <button
+                    className="nav-close"
+                    onClick={() => setNavigationOpen(false)}
+                    aria-label="Close navigation"
+                >
+                    ×
+                </button>
                 <div>
                     <span className="brand">Yapping Frog</span>
                     <h2>{session.tenant.name}</h2>
@@ -292,8 +320,25 @@ export function App() {
                 </div>
             </aside>
 
+            {navigationOpen && (
+                <button
+                    className="nav-backdrop"
+                    onClick={() => setNavigationOpen(false)}
+                    aria-label="Close navigation"
+                />
+            )}
+
             <main>
-                <header>
+                <header className="workspace-header">
+                    <button
+                        className="nav-toggle"
+                        onClick={() => setNavigationOpen(true)}
+                        aria-controls="tenant-navigation"
+                        aria-expanded={navigationOpen}
+                        aria-label="Open navigation"
+                    >
+                        ☰
+                    </button>
                     <div>
                         <h1>{title}</h1>
                     </div>
